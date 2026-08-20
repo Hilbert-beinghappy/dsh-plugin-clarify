@@ -62,8 +62,8 @@ web_modules/
 # Output of 'npm pack'
 *.tgz
 
-# Build output
-lib/
+# Build output (root only; do not ignore scripts/lib)
+/lib/
 
 # Isolated dsh probe homes (never commit Profile/Session data)
 .probe-work/
