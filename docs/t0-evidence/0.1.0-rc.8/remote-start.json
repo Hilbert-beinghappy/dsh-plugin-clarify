@@ -1,0 +1,12 @@
+{
+  "type": "server-response",
+  "rpcId": "50c73f03-7004-47e4-b006-61ca028d0612",
+  "result": {
+    "ok": false,
+    "error": {
+      "code": "internal",
+      "message": "session missing-session is not available through the public sessions service",
+      "details": {}
+    }
+  }
+}

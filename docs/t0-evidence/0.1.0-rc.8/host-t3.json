@@ -1,0 +1,59 @@
+{
+  "ok": true,
+  "blocked": false,
+  "interactive": false,
+  "envelopeLive": true,
+  "endpoints": {
+    "start": {
+      "status": 200,
+      "envelope": "server-response",
+      "ok": false,
+      "errorCode": "internal",
+      "errorMessage": "session missing-session is not available through the public sessions service",
+      "live": true
+    },
+    "answer": {
+      "status": 200,
+      "envelope": "server-response",
+      "ok": false,
+      "errorCode": "internal",
+      "errorMessage": "process missing-process does not exist",
+      "live": true
+    },
+    "cancel": {
+      "status": 200,
+      "envelope": "server-response",
+      "ok": false,
+      "errorCode": "internal",
+      "errorMessage": "process missing-process does not exist",
+      "live": true
+    },
+    "fetchDraft": {
+      "status": 200,
+      "envelope": "server-response",
+      "ok": false,
+      "errorCode": "internal",
+      "errorMessage": "process missing-process does not exist",
+      "live": true
+    }
+  },
+  "sessionDiscovery": {
+    "method": "session.list",
+    "listedBy": "session.list",
+    "source": "t0-probe-test-fixture",
+    "createdByHarness": true,
+    "productionPluginCreated": false,
+    "createdByThisScript": false,
+    "fixture": "isolated-test-fixture",
+    "note": "Session came from this T0 probe test fixture and was then found via session.list. Isolation only; production plugin and DIY must not create Session."
+  },
+  "steps": {
+    "start": "running",
+    "answer1": "running",
+    "complete": "complete",
+    "draftPresent": true,
+    "completeHadDraft": false
+  },
+  "errors": [],
+  "note": "GET /clarify static HTML is not an interactive T3 pass. Session source=t0-probe-test-fixture, createdByHarness=true, productionPluginCreated=false. Isolation test fixture only; production plugin and DIY must not create Session."
+}

@@ -1,0 +1,7 @@
+# Official dsh.bundle.patch layer. `dsh plugin add` reconciles a dependency
+# into `dsh.profile.bundles` only when package.json declares `dsh.bundle.patch`.
+# This file is that patch: one insert over the composed tree. It does not
+# replace in-box rows; later profile / --patch layers still win by id.
+- insert:
+    - id: clarify
+      name: dsh-plugin-clarify

@@ -1,0 +1,3 @@
+# == dsh-plugin-clarify
+- id: clarify
+  name: dsh-plugin-clarify
