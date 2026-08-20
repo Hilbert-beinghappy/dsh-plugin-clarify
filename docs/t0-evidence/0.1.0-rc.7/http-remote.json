@@ -1,0 +1,9 @@
+{
+  "url": "/api/clarify/start",
+  "status": 200,
+  "headers": {},
+  "json": true,
+  "ok": false,
+  "errorCode": "internal",
+  "textPreview": "{\"type\":\"server-response\",\"rpcId\":\"4de9d1c5-e8e6-4363-8fca-8adcb461bd67\",\"result\":{\"ok\":false,\"error\":{\"code\":\"internal\",\"message\":\"session missing-session is not available through the public sessions service\",\"details\":{}}}}"
+}

@@ -1,0 +1,135 @@
+{
+  "dshVersion": "0.1.0-rc.6",
+  "dshSpecSource": "version",
+  "requested": {
+    "metaVersion": "0.1.0-rc.6",
+    "source": "version"
+  },
+  "observedCliVersion": "0.1.0-rc.6",
+  "componentGraph": {
+    "metaPackage": "@deepseek-ai/dsh",
+    "metaVersion": "0.1.0-rc.6",
+    "declaredBaseRange": "^0.1.0-rc.6",
+    "core": {
+      "@deepseek-ai/dsh": "0.1.0-rc.6",
+      "@deepseek-ai/dsh-base": "0.1.0-rc.7",
+      "@deepseek-ai/dsh-web-app": "0.1.0-rc.7",
+      "@deepseek-ai/dsh-typert-protocol": "0.1.0-rc.7",
+      "@deepseek-ai/dsh-typert-registry": "0.1.0-rc.7",
+      "@deepseek-ai/dsh-session": "0.1.0-rc.7",
+      "@deepseek-ai/dsh-token-meter": "0.1.0-rc.7"
+    },
+    "mixed": true,
+    "note": "meta package uses caret ranges; resolved components may be newer than the requested meta version. This lane is not a pure single-version tree."
+  },
+  "commands": [
+    {
+      "name": "dsh --version",
+      "ok": true,
+      "output": "0.1.0-rc.6\n"
+    },
+    {
+      "name": "dsh --help",
+      "ok": true,
+      "output": "Usage: dsh [options] [command] [args...]\n\ndsh: boot a DeepSeek Harness profile — an ordered stack of plugin-bundle patch\nlayers under your own overrides.\n\nArguments:\n  args                        arguments for the booted profile's app (see: dsh\n                              --profile <name> --help)\n\nOptions:\n  -V, --version               output the version number\n  --profile <name>            the profile under $DSH_HOME/profiles to boot\n  --patch <path>              extra patch-list overlay applied after the profile\n                              layer (repeatable)\n  --dump-config               print the composed profile tree and exit\n  --dump-default-config       print the profile tree without its user layer or\n                              --patch overlays and exit\n\nCommands:\n  web [options] [args...]     boot the web profile (alias of --profile web); the\n                              web app's own flags follow\n  plugin [options] [args...]  manage a profile's plugins by forwarding the\n                              remaining arguments to pnpm in the profile\n                              directory\n\nExamples:\n  dsh --profile web                          boot the web profile (same as: dsh web)\n  dsh --profile headless \"run the tests\"     answer one task, print the result, and exit\n  dsh --profile tui --patch ./extra.yml      boot a custom profile with one extra overlay\n  dsh --profile tui --resume <session>       arguments after the launcher flags reach the app\n  dsh --profile web --help                   the web app's own flags and help\n  dsh plugin --profile tui add <package>     install a plugin into the tui profile\n\n"
+    },
+    {
+      "name": "init dump-config",
+      "ok": true,
+      "output": "dsh-plugin-clarify not found"
+    },
+    {
+      "name": "plugin add tgz",
+      "ok": true,
+      "output": "Progress: resolved 0, reused 0, downloaded 1, added 0\n\ndependencies:\n+ dsh-plugin-clarify file:<redacted-path>\n\nPackages: +1\n+\nPackages are copied from the content-addressable store to the virtual store.\n  <redacted-store>\n  <redacted-store>\nProgress: resolved 1, reused 0, downloaded 1, added 1, done\nDone in 307ms using pnpm v11.19.0\n"
+    },
+    {
+      "name": "dump-config after add",
+      "ok": true,
+      "output": "# == dsh-plugin-clarify\n- id: clarify\n  name: dsh-plugin-clarify"
+    },
+    {
+      "name": "dsh --profile web --help",
+      "ok": true,
+      "output": "Usage: dsh --profile web [options]\n\nServe the DeepSeek Harness browser UI.\n\nOptions:\n  --host <host>                  bind host\n  --port <port>                  listen port; pass 0 to let the OS pick a free\n                                 one\n  --trusted-host <authority...>  extra authority the /api browser-trust fence\n                                 accepts (host or host:port; repeatable)\n  -h, --help                     show this help\n\nExamples:\n  dsh --profile web                          serve on the composed host and port\n  dsh --profile web --port 8080              serve on another port\n\n"
+    }
+  ],
+  "pluginAddOk": true,
+  "dumpContainsClarify": true,
+  "http": {
+    "origin": "http://127.0.0.1:<ephemeral>",
+    "clarify": {
+      "status": 200,
+      "diy": true
+    },
+    "probe": {
+      "status": 200,
+      "json": true
+    },
+    "remote": {
+      "status": 200,
+      "live": true,
+      "errorCode": "internal",
+      "envelope": "server-response"
+    },
+    "hostT3": {
+      "ok": true,
+      "blocked": false,
+      "interactive": false,
+      "envelopeLive": true,
+      "endpoints": {
+        "start": {
+          "status": 200,
+          "envelope": "server-response",
+          "ok": false,
+          "errorCode": "internal",
+          "errorMessage": "session missing-session is not available through the public sessions service",
+          "live": true
+        },
+        "answer": {
+          "status": 200,
+          "envelope": "server-response",
+          "ok": false,
+          "errorCode": "internal",
+          "errorMessage": "process missing-process does not exist",
+          "live": true
+        },
+        "cancel": {
+          "status": 200,
+          "envelope": "server-response",
+          "ok": false,
+          "errorCode": "internal",
+          "errorMessage": "process missing-process does not exist",
+          "live": true
+        },
+        "fetchDraft": {
+          "status": 200,
+          "envelope": "server-response",
+          "ok": false,
+          "errorCode": "internal",
+          "errorMessage": "process missing-process does not exist",
+          "live": true
+        }
+      },
+      "sessionDiscovery": {
+        "method": "session.list",
+        "listedBy": "session.list",
+        "source": "t0-probe-test-fixture",
+        "createdByHarness": true,
+        "productionPluginCreated": false,
+        "createdByThisScript": false,
+        "fixture": "isolated-test-fixture",
+        "note": "Session came from this T0 probe test fixture and was then found via session.list. Isolation only; production plugin and DIY must not create Session."
+      },
+      "steps": {
+        "start": "running",
+        "answer1": "running",
+        "complete": "complete",
+        "draftPresent": true,
+        "completeHadDraft": false
+      },
+      "errors": [],
+      "note": "GET /clarify static HTML is not an interactive T3 pass. Session source=t0-probe-test-fixture, createdByHarness=true, productionPluginCreated=false. Isolation test fixture only; production plugin and DIY must not create Session."
+    }
+  }
+}

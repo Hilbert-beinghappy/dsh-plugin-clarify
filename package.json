@@ -1,0 +1,61 @@
+{
+  "name": "dsh-plugin-clarify",
+  "version": "0.1.0",
+  "description": "Off-transcript clarification Host plugin for DeepSeek Harness",
+  "license": "MIT",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "LICENSE",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "pack": "pnpm pack",
+    "pack:check": "node scripts/pack-check.mjs",
+    "t0": "node scripts/t0-run.mjs",
+    "t0:rc6": "node scripts/t0-run.mjs --dsh-version 0.1.0-rc.6",
+    "t0:rc7": "node scripts/t0-run.mjs --dsh-version 0.1.0-rc.7",
+    "t0:rc8": "node scripts/t0-run.mjs --dsh-version 0.1.0-rc.8",
+    "t0:latest": "node scripts/t0-run.mjs --dsh-tag latest",
+    "t0:next": "node scripts/t0-run.mjs --dsh-tag next",
+    "t0:matrix": "node scripts/t0-matrix.mjs",
+    "t1": "node scripts/t1-lifecycle.mjs",
+    "t1:matrix": "node scripts/t0-matrix.mjs t1",
+    "t3": "node scripts/t3-e2e.mjs",
+    "sanitize:appledouble": "node scripts/remove-appledouble.mjs",
+    "prepack": "pnpm run build"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "host-plugin",
+    "clarify"
+  ],
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.8"
+  }
+}

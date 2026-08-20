@@ -1,0 +1,5 @@
+# Single-package repo. Nested probe installs must never become workspace members.
+packages:
+  - '.'
+allowBuilds:
+  esbuild: true
