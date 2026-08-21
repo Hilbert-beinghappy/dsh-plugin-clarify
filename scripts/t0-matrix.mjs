@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { classifyLaneSpawn, formatLaneSpawnFailure } from './lib/matrix-lane.mjs'
 import { matrixFromTags, readDistTags } from './lib/versions.mjs'
 import { sanitizeText } from './lib/sanitize.mjs'
 import { hostT3SessionSource, t1DoctorVerdict, t1LifecycleVerdict, t1StandaloneExitOk, t1StandaloneVerdict, t1Verdict } from './lib/matrix-row.mjs'
@@ -17,6 +18,7 @@ if (fromEvidence) console.log('from-evidence: refresh summaries only, do not re-
 
 const kind = process.argv.includes('t1') ? 't1' : 't0'
 const script = kind === 't1' ? 't1-lifecycle.mjs' : 't0-run.mjs'
+const LANE_TIMEOUT_MS = 900_000
 const rows = []
 let failed = 0
 for (const version of matrix.versions) {
@@ -25,11 +27,13 @@ for (const version of matrix.versions) {
     const result = spawnSync(process.execPath, [`scripts/${script}`, '--dsh-version', version], {
       cwd: root,
       stdio: 'inherit',
+      timeout: LANE_TIMEOUT_MS,
     })
-    const exit = result.status ?? 1
-    if (exit !== 0) {
+    const classified = classifyLaneSpawn(result)
+    const exit = classified.exit
+    if (classified.label !== 'OK') {
       failed += 1
-      console.error(`BLOCK/FAIL ${script} ${version} exit ${exit}`)
+      console.error(formatLaneSpawnFailure(script, version, classified))
     }
     rows.push(readLaneRow(version, kind, exit))
   } else {

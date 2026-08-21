@@ -1,0 +1,322 @@
+{
+  "capturedAt": "<ephemeral-timestamp>",
+  "dshHint": "0.1.1-rc.2",
+  "services": {
+    "llm": {
+      "present": true
+    },
+    "sessions": {
+      "present": true
+    },
+    "webServer": {
+      "present": true
+    },
+    "tokenMeter": {
+      "present": true
+    },
+    "sessionProjections": {
+      "present": true
+    },
+    "typert": {
+      "present": true
+    },
+    "typertGateway": {
+      "present": true
+    },
+    "remote": {
+      "present": false,
+      "error": "cannot get property \"remote\" without inject"
+    },
+    "clientModules": {
+      "present": true
+    },
+    "agents": {
+      "present": true
+    },
+    "connection": {
+      "present": true
+    },
+    "credentials": {
+      "present": true
+    }
+  },
+  "llmSurface": {
+    "hasStream": true,
+    "hasRegisterAdapter": true
+  },
+  "llmHelpers": {
+    "loaded": true,
+    "hasIsAgentLoopRequest": true,
+    "hasMarkAgentLoopRequest": true,
+    "error": null
+  },
+  "usage": {
+    "status": "observed",
+    "adapterError": null,
+    "streamError": null,
+    "requestWasAgentLoop": false,
+    "chunkTypes": [
+      "finish"
+    ],
+    "eventsBefore": 3,
+    "eventsAfter": 3,
+    "eventCountDelta": 0,
+    "derivedMessageCountBefore": 0,
+    "derivedMessageCountAfter": 0,
+    "derivedDelta": 0,
+    "surfaceNodeCountBefore": 0,
+    "surfaceNodeCountAfter": 0,
+    "usageMeasureBefore": {
+      "logRevision": 3,
+      "baseline": [
+        "kind",
+        "tokens"
+      ],
+      "surfaceDeltaTokens": 0,
+      "totalTokens": 0,
+      "surfaceTokens": 0,
+      "nodes": []
+    },
+    "usageMeasureAfter": {
+      "logRevision": 3,
+      "baseline": [
+        "kind",
+        "tokens"
+      ],
+      "surfaceDeltaTokens": 0,
+      "totalTokens": 0,
+      "surfaceTokens": 0,
+      "nodes": []
+    },
+    "usageProjectionBefore": {
+      "uncachedInputTokens": 0,
+      "outputTokens": 0,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0
+    },
+    "usageProjectionAfter": {
+      "uncachedInputTokens": 0,
+      "outputTokens": 0,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0
+    },
+    "expectedUsageProjectionDelta": {
+      "uncachedInputTokens": 3,
+      "outputTokens": 1,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0
+    },
+    "expectedTotalTokensDelta": 4,
+    "limits": {
+      "status": "unproven",
+      "reason": "this probe did not observe a public Host limits channel rejecting the auxiliary stream"
+    },
+    "cancellation": {
+      "status": "unproven",
+      "reason": "this probe did not observe a public Host cancellation channel aborting the auxiliary stream"
+    },
+    "offTranscript": true,
+    "probeCreatedSession": true,
+    "sessionSource": "created-by-probe",
+    "verdictNotes": [
+      "Direct ctx.llm.stream was invoked without markAgentLoopRequest and without tools.",
+      "If event/derived deltas are zero, the call did not append a transcript surface; usage still requires a Harness usage channel.",
+      "A probe-created session is only a P-usage fixture. It does not prove usage attribution on a bound user Session.",
+      "Gate (d) also requires independent limits and cancellation observations; usage attribution alone cannot pass it."
+    ]
+  },
+  "header": {
+    "status": "blocked-live-header",
+    "reason": "requestHeader() is undefined on a fresh session; public API has no context revision id besides the forbidden session.seq fallback",
+    "hasRequestHeader": false,
+    "headerKeys": [],
+    "configKeys": [],
+    "hasSystemField": false,
+    "hasToolsField": false,
+    "hasProvider": false,
+    "hasModel": false,
+    "hasReasoningEffort": false,
+    "hasSessionSeq": true,
+    "fingerprintFromEmptyHeader": {
+      "contextVersion": "sha256:5ae0189d14e8bd64e7b1ee106e3d67e002a49cdf99394b78c9192a6af242e58f",
+      "modelRouteId": "sha256:9ecec0dbe13c8fdb36f364f2001ba08cb71c98fac485d6c81f92f05d8f8194e9"
+    },
+    "liveSystemToolsChangeWithoutNewMessages": {
+      "status": "blocked",
+      "reason": "stock public API was not observed to mutate system/tools without an agent loop or a request/header write; probe refuses to append request/header itself"
+    }
+  },
+  "web": {
+    "hasWebServer": true,
+    "hasRegister": true,
+    "webServerPort": 65495,
+    "webServerHost": "127.0.0.1",
+    "hasClientModules": true,
+    "clientGraphEntryCount": 42,
+    "graphError": null,
+    "hasRemoteMount": false,
+    "remotePeek": {
+      "present": false,
+      "error": "cannot get property \"remote\" without inject"
+    },
+    "hasTypert": true,
+    "hasTypertRegister": true,
+    "hasTypertGateway": true,
+    "hasTypertGatewayInvoke": true,
+    "typertLocalEndpoints": [
+      "clarify/accept",
+      "clarify/answer",
+      "clarify/cancel",
+      "clarify/fetchDraft",
+      "clarify/refine",
+      "clarify/start",
+      "commands/execute",
+      "commands/list",
+      "dynamicCordisRunner/getClientCode",
+      "dynamicCordisRunner/inventory",
+      "dynamicCordisRunner/invoke",
+      "dynamicCordisRunner/reportClientGuardFailure",
+      "dynamicCordisRunner/reportRenderFailure",
+      "dynamicCordisRunner/resolveInspectQuery",
+      "dynamicCordisRunner/resolveRequestRun",
+      "dynamicCordisRunner/runHostHalf",
+      "dynamicCordisRunner/settleUserRun",
+      "dynamicCordisRunner/stopFromPanel",
+      "dynamicCordisRunner/syncInspectManifest",
+      "dynamicCordisRunner/undefineFromPanel",
+      "goals/clear",
+      "goals/complete",
+      "goals/create",
+      "goals/edit",
+      "goals/pause",
+      "goals/resume",
+      "messageFeedback/delete",
+      "messageFeedback/list",
+      "messageFeedback/put",
+      "pluginInventory/list",
+      "sessionReferenceResolver/candidates"
+    ],
+    "typertLocalExact": {
+      "clarify/start": true,
+      "clarify/answer": true,
+      "clarify/accept": true,
+      "clarify/refine": true,
+      "clarify/cancel": true,
+      "clarify/fetchDraft": true
+    },
+    "clarifyRemoteClaimed": true,
+    "remoteRegistration": {
+      "status": "registered",
+      "mode": "typert.register",
+      "namespace": "clarify",
+      "methods": [
+        "start",
+        "answer",
+        "accept",
+        "refine",
+        "cancel",
+        "fetchDraft"
+      ],
+      "endpoints": [
+        "clarify/start",
+        "clarify/answer",
+        "clarify/accept",
+        "clarify/refine",
+        "clarify/cancel",
+        "clarify/fetchDraft"
+      ],
+      "liveService": {
+        "provided": true,
+        "reflected": true,
+        "sameIdentity": true
+      }
+    },
+    "liveService": {
+      "reflected": true,
+      "hasStart": true,
+      "hasAnswer": true,
+      "hasCancel": true,
+      "hasFetchDraft": true,
+      "note": "Client $mount TypertRemoteContribution is not used; Host receiver must be the provide/reflect live Service"
+    },
+    "consumerPath": {
+      "status": "observed",
+      "path": "typertGateway.invoke",
+      "observed": 6,
+      "endpoints": {
+        "start": {
+          "status": "hit",
+          "kind": "business",
+          "resultKeys": [
+            "protocol",
+            "ok",
+            "error"
+          ]
+        },
+        "answer": {
+          "status": "hit",
+          "kind": "business",
+          "resultKeys": [
+            "protocol",
+            "ok",
+            "error"
+          ]
+        },
+        "accept": {
+          "status": "hit",
+          "kind": "business",
+          "resultKeys": [
+            "protocol",
+            "ok",
+            "error"
+          ]
+        },
+        "refine": {
+          "status": "hit",
+          "kind": "business",
+          "resultKeys": [
+            "protocol",
+            "ok",
+            "error"
+          ]
+        },
+        "cancel": {
+          "status": "hit",
+          "kind": "business",
+          "resultKeys": [
+            "protocol",
+            "ok",
+            "error"
+          ]
+        },
+        "fetchDraft": {
+          "status": "hit",
+          "kind": "business",
+          "resultKeys": [
+            "protocol",
+            "ok",
+            "error"
+          ]
+        }
+      },
+      "note": "only PROCESS_NOT_FOUND / PROCESS_BUSY / SESSION_ID_REQUIRED / INVALID_ANSWER (or a process echo) prove the receiver; invocation-unavailable and HTTP 404 are infrastructure blocks"
+    },
+    "hostDiyPaths": [
+      "/clarify",
+      "/clarify/probe"
+    ],
+    "currentSessionDiscovery": {
+      "status": "blocked",
+      "reason": "stock public API was not observed to expose the current user sessionId; DIY requires the user to paste an existing sessionId and will not create one"
+    },
+    "stockWebPluginUiMount": {
+      "status": "unproven",
+      "reason": "this probe does not claim a ConversationNode or settings panel; Host DIY GET /clarify is the documented fallback and must use the same /api Remote"
+    }
+  },
+  "notes": [
+    "Evidence omits credentials, Profile secrets, and Session message bodies.",
+    "contextVersion must not be session.seq; fingerprints hash model-visible system/tools/messages.",
+    "Accessing undeclared Cordis services throws; optional chaining does not catch that."
+  ]
+}

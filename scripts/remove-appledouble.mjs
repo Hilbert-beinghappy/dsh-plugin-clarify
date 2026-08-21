@@ -4,8 +4,8 @@ import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
-const allowDirs = new Set(['src', 'test', 'scripts', 'docs', '.github'])
-const skip = new Set(['.git', 'node_modules', '.probe-work', 'lib'])
+const allowDirs = new Set(['src', 'test', 'scripts', 'docs', '.github', 'lib'])
+const skip = new Set(['.git', 'node_modules', '.probe-work'])
 const del = process.argv.includes('--delete')
 const listed = []
 

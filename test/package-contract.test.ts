@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { isForbiddenPackEntry } from '../scripts/pack-policy.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 
@@ -16,12 +17,17 @@ describe('published package contract', () => {
     exports?: Record<string, unknown>
     files?: string[]
     scripts?: Record<string, string>
-    dsh?: { bundle?: { patch?: string } }
+    dsh?: { bundle?: { patch?: string }; host?: string }
+    dshPlugin?: { testedHost?: string; testedHosts?: string[] }
   }
 
-  it('is the unreleased 0.2.1 package named dsh-plugin-clarify', () => {
+  it('is the unreleased 0.2.2 package named dsh-plugin-clarify', () => {
     expect(pkg.name).toBe('dsh-plugin-clarify')
-    expect(pkg.version).toBe('0.2.1')
+    expect(pkg.version).toBe('0.2.2')
+    expect(pkg.dsh?.host).toBeUndefined()
+    expect(pkg.dshPlugin?.testedHost).toBe('0.1.1-rc.2')
+    expect(pkg.dshPlugin?.testedHosts).toEqual(['0.1.0-rc.8', '0.1.1-rc.2'])
+    expect(pkg.dshPlugin?.testedHosts).not.toContain('0.1.1-rc.1')
   })
 
   it('declares official dsh.bundle.patch so plugin add can reconcile the layer', () => {
@@ -65,6 +71,34 @@ describe('published package contract', () => {
       expect(source).toContain('packageManifest.version')
       expect(source).not.toMatch(/dsh-plugin-clarify-\d+\.\d+\.\d+\.tgz/)
     }
+  })
+
+  it('pins the 0.1.1-rc.2 contract lane, keeps rc.1 historical commands, and keeps pack-policy out of the published files', () => {
+    expect(pkg.scripts?.['t0:dsh011rc2']).toBe('node scripts/t0-run.mjs --dsh-version 0.1.1-rc.2')
+    expect(pkg.scripts?.['t1:dsh011rc2']).toBe('node scripts/t1-lifecycle.mjs --dsh-version 0.1.1-rc.2')
+    expect(pkg.scripts?.['t0:dsh011rc1']).toBe('node scripts/t0-run.mjs --dsh-version 0.1.1-rc.1')
+    expect(pkg.scripts?.['t1:dsh011rc1']).toBe('node scripts/t1-lifecycle.mjs --dsh-version 0.1.1-rc.1')
+    expect(pkg.scripts).not.toHaveProperty('t0:011')
+    expect(pkg.scripts?.['t0:matrix']).toBe('node scripts/t0-matrix.mjs')
+    expect(pkg.files?.join('\n')).not.toMatch(/pack-policy|scripts\//)
+    const ci = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8')
+    expect(ci).toMatch(/node-version: '22'/)
+    expect(ci).not.toMatch(/node-version: '24'/)
+  })
+
+  it('rejects AppleDouble and Finder metadata pack entries without shipping the helper', () => {
+    expect(isForbiddenPackEntry('package/lib/._index.js')).toBe(true)
+    expect(isForbiddenPackEntry('package/._README.md')).toBe(true)
+    expect(isForbiddenPackEntry('package/.DS_Store')).toBe(true)
+    expect(isForbiddenPackEntry('package/lib/.DS_Store')).toBe(true)
+    expect(isForbiddenPackEntry('package/lib/index.js')).toBe(false)
+    expect(isForbiddenPackEntry('package/README.md')).toBe(false)
+    const packCheck = readFileSync(join(root, 'scripts/pack-check.mjs'), 'utf8')
+    const packPolicy = readFileSync(join(root, 'scripts/pack-policy.mjs'), 'utf8')
+    expect(packCheck).toMatch(/isForbiddenPackEntry/)
+    expect(packPolicy).toMatch(/segment\.startsWith\('\._'\)/)
+    expect(packPolicy).toMatch(/segment === '\.DS_Store'/)
+    expect(packPolicy.split('\n').filter((line) => line.trim()).length).toBeLessThan(8)
   })
 
   it('lockfile importers stay the package root and never mention probe-work', () => {
@@ -125,5 +159,25 @@ describe('source persistence guard', () => {
     expect(sourceNames).not.toContain('prepared-call-inference.ts')
     expect(index).not.toMatch(/acceptance|prepareCall|ctx\.llm/)
     expect(publicApi).not.toMatch(/acceptance|PreparedCall|prepareCall/)
+  })
+
+  it('does not publish unused Auxiliary pairing helpers on the public compat surface', () => {
+    const publicApi = readFileSync(join(root, 'src/public-api.ts'), 'utf8')
+    const compat = readFileSync(join(root, 'src/compat.ts'), 'utf8')
+    for (const source of [publicApi, compat]) {
+      expect(source).not.toMatch(/productionAuxiliaryMinimum/)
+      expect(source).not.toMatch(/isAuxiliaryVersionAtLeast/)
+      expect(source).not.toMatch(/isAllowedProductionAuxiliary/)
+      expect(source).not.toMatch(/AUXILIARY_MIN_/)
+      expect(source).not.toMatch(/PRODUCTION_HOST_VERSIONS/)
+    }
+    expect(publicApi).toContain('MINIMUM_DSH_VERSION')
+    expect(publicApi).toContain('PINNED_CONTRACT_VERSIONS')
+    expect(publicApi).not.toMatch(/PINNED_DSH_VERSION(?:_LEGACY_RC8)?/)
+    expect(compat).toContain("export const MINIMUM_DSH_VERSION = '0.1.0-rc.6'")
+    expect(compat).toContain("export const PINNED_DSH_VERSION = '0.1.1-rc.2'")
+    expect(compat).toContain("export const PINNED_DSH_VERSION_LEGACY_RC8 = '0.1.0-rc.8'")
+    expect(compat).toContain('PINNED_CONTRACT_VERSIONS')
+    expect(compat).not.toMatch(/PINNED_CONTRACT_VERSIONS = \[[^\]]*0\.1\.1-rc\.1/)
   })
 })

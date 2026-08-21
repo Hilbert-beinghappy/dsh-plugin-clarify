@@ -296,24 +296,43 @@ describe('compatibility matrix helpers', () => {
     expect([...PINNED_CONTRACT_VERSIONS]).toEqual([...srcPinned])
   })
 
-  it('dedupes latest onto rc.7 and keeps next when it differs', () => {
+  it('pins rc.6 + rc.7 + rc.8 + 0.1.1-rc.2 and dedupes latest/next onto those exact versions', () => {
+    expect([...srcPinned]).toEqual(['0.1.0-rc.6', '0.1.0-rc.7', '0.1.0-rc.8', '0.1.1-rc.2'])
+    expect(srcPinned).not.toContain('0.1.1-rc.1')
     expect(uniqueContractVersions({
       latest: '0.1.0-rc.7',
       next: '0.1.0-rc.8',
-    })).toEqual(['0.1.0-rc.6', '0.1.0-rc.7', '0.1.0-rc.8'])
+    })).toEqual(['0.1.0-rc.6', '0.1.0-rc.7', '0.1.0-rc.8', '0.1.1-rc.2'])
+    expect(uniqueContractVersions({
+      latest: '0.1.0-rc.7',
+      next: '0.1.1-rc.2',
+    })).toEqual(['0.1.0-rc.6', '0.1.0-rc.7', '0.1.0-rc.8', '0.1.1-rc.2'])
+    expect(uniqueContractVersions({
+      latest: '0.1.1-rc.2',
+      next: '0.1.1-rc.2',
+    })).toEqual(['0.1.0-rc.6', '0.1.0-rc.7', '0.1.0-rc.8', '0.1.1-rc.2'])
   })
 
-  it('keeps pinned rc.8 even when next equals latest', () => {
+  it('keeps pinned rc.8 and 0.1.1-rc.2 even when next equals latest', () => {
     expect(uniqueContractVersions({
       latest: '0.1.0-rc.7',
       next: '0.1.0-rc.7',
-    })).toEqual(['0.1.0-rc.6', '0.1.0-rc.7', '0.1.0-rc.8'])
+    })).toEqual(['0.1.0-rc.6', '0.1.0-rc.7', '0.1.0-rc.8', '0.1.1-rc.2'])
   })
 
   it('adds a newer discovered latest/next without dropping pinned lanes', () => {
     expect(uniqueContractVersions({
       latest: '0.1.0-rc.9',
       next: '0.1.0-rc.10',
-    })).toEqual(['0.1.0-rc.6', '0.1.0-rc.7', '0.1.0-rc.8', '0.1.0-rc.9', '0.1.0-rc.10'])
+    })).toEqual(['0.1.0-rc.6', '0.1.0-rc.7', '0.1.0-rc.8', '0.1.1-rc.2', '0.1.0-rc.9', '0.1.0-rc.10'])
+  })
+
+  it('does not put historical 0.1.1-rc.1 into the default pin set when latest=next=rc.2', () => {
+    const versions = uniqueContractVersions({
+      latest: '0.1.1-rc.2',
+      next: '0.1.1-rc.2',
+    })
+    expect(versions).toEqual(['0.1.0-rc.6', '0.1.0-rc.7', '0.1.0-rc.8', '0.1.1-rc.2'])
+    expect(versions).not.toContain('0.1.1-rc.1')
   })
 })
