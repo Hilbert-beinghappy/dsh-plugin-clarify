@@ -4,7 +4,8 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { classifyLaneSpawn, formatLaneSpawnFailure } from './lib/matrix-lane.mjs'
-import { matrixFromTags, readDistTags } from './lib/versions.mjs'
+import { HISTORICAL_MATRIX_HEADING, matrixSummaryProvenanceLine } from './lib/matrix-summary.mjs'
+import { HISTORICAL_OBSERVATION_VERSIONS, matrixFromTags, readDistTags } from './lib/versions.mjs'
 import { sanitizeText } from './lib/sanitize.mjs'
 import { hostT3SessionSource, t1DoctorVerdict, t1LifecycleVerdict, t1StandaloneExitOk, t1StandaloneVerdict, t1Verdict } from './lib/matrix-row.mjs'
 
@@ -111,28 +112,38 @@ function readLaneRow(version, kind, exit) {
 
 function writeMatrixSummary(kind, matrix, rows, failed) {
   const isT0 = kind === 't0'
+  const historicalRows = HISTORICAL_OBSERVATION_VERSIONS
+    .filter((version) => !matrix.versions.includes(version))
+    .map((version) => readLaneRow(version, kind, inferredExit(version, kind)))
+    .filter((row) => row.report !== 'missing')
+  const table = isT0
+    ? [
+      '| 请求元包 | CLI | base | 混合树 | (a) | (b) | (c) | (d) | Host T3 | T3 Session | 退出码 | 分版本报告 |',
+      '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+    ]
+    : [
+      '| 请求元包 | CLI | base | 混合树 | standalone lifecycle | cross-project doctor | T1 完全通过 | 退出码 | 分版本报告 |',
+      '| --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+    ]
+  const renderRow = isT0
+    ? (row) => `| ${row.version} | ${row.observedCliVersion ?? 'n/a'} | ${row.base ?? 'n/a'} | ${row.mixed === null ? 'n/a' : row.mixed} | ${row.a} | ${row.b} | ${row.c} | ${row.d} | ${row.hostT3} | ${row.hostT3Session} | ${row.exit} | ${row.report} |`
+    : (row) => `| ${row.version} | ${row.observedCliVersion ?? 'n/a'} | ${row.base ?? 'n/a'} | ${row.mixed === null ? 'n/a' : row.mixed} | ${row.lifecycle} | ${row.doctor} | ${row.t1} | ${row.exit} | ${row.report} |`
   const lines = [
     `# ${kind.toUpperCase()} 矩阵摘要`,
     '',
-    `> 生成于矩阵跑完之后。各精确版本结论只写在 \`docs/t0-evidence/<version>/\`，本文件不覆盖那些目录。`,
+    matrixSummaryProvenanceLine({ fromEvidence, versions: matrix.versions }),
     `> dist-tags 快照：\`${matrix.snapshot}\`。\`latest\` / \`next\` 是动态发现，不是对未发布版本的保证。`,
     isT0
       ? `> 子进程退出 0 不等于闸门可行。(b)/(d) 阻塞则该版本 T4+ 停止。Host T3「通过」只表示官方 /api 信封完整回合；Session 是隔离测试夹具，见 T3 Session 列。`
       : `> standalone T1 只陈述 stock add/boot/remove/re-add lifecycle。任务书 /doctor 零错误零警告是 final cross-project acceptance，待 Task B 既有本地 /doctor 联调。在联调证据存在前不得把 T1 写成完全通过。stock dsh 无 doctor 不得使本矩阵永久红。`,
     '',
-    `pinned release lanes: \`${matrix.versions.join('`, `')}\``,
+    `pinned contract lanes: \`${matrix.versions.join('`, `')}\``,
     '',
-    ...(isT0
-      ? [
-        '| 请求元包 | CLI | base | 混合树 | (a) | (b) | (c) | (d) | Host T3 | T3 Session | 退出码 | 分版本报告 |',
-        '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
-        ...rows.map((row) => `| ${row.version} | ${row.observedCliVersion ?? 'n/a'} | ${row.base ?? 'n/a'} | ${row.mixed === null ? 'n/a' : row.mixed} | ${row.a} | ${row.b} | ${row.c} | ${row.d} | ${row.hostT3} | ${row.hostT3Session} | ${row.exit} | ${row.report} |`),
-      ]
-      : [
-        '| 请求元包 | CLI | base | 混合树 | standalone lifecycle | cross-project doctor | T1 完全通过 | 退出码 | 分版本报告 |',
-        '| --- | --- | --- | --- | --- | --- | --- | --- | --- |',
-        ...rows.map((row) => `| ${row.version} | ${row.observedCliVersion ?? 'n/a'} | ${row.base ?? 'n/a'} | ${row.mixed === null ? 'n/a' : row.mixed} | ${row.lifecycle} | ${row.doctor} | ${row.t1} | ${row.exit} | ${row.report} |`),
-      ]),
+    ...table,
+    ...rows.map(renderRow),
+    ...(historicalRows.length > 0
+      ? ['', HISTORICAL_MATRIX_HEADING, '', ...table, ...historicalRows.map(renderRow)]
+      : []),
     '',
     isT0
       ? 'T0 子进程退出 0 只表示探针跑完并写了报告，不是 (a)–(d) 全绿。'

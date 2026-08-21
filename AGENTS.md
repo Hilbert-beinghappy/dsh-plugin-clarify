@@ -4,8 +4,8 @@
 
 ## 必须遵守
 
-- 包名 `dsh-plugin-clarify`，已发布首版 `0.1.0` 与 `0.2.0`，当前未发布目标 `0.2.1`。禁止 `workspace:` 依赖；生产源码、包清单和依赖禁止引用 `seektty`，文档可以说明跨项目验收边界。
-- 兼容最低基线官方 `@deepseek-ai/dsh@0.1.0-rc.6`。本地/CI 合同是 **pinned rc.6 + rc.7 + rc.8 + 动态 latest**，并在 `next ≠ latest` 时加跑 `next`。公开表只把实际跑过的精确版本标为已验证。对未发布版本只做能力探测、版本化适配、安全降级；不虚构“已验证”，不硬锁 rc.6/rc.7 私有实现。rc.6 元包的 `^` 依赖可能解析到更新组件，报告必须写清组件图。
+- 包名 `dsh-plugin-clarify`，已发布 `0.1.0`、`0.2.0` 与 `0.2.1`，当前未发布目标 `0.2.2`。禁止 `workspace:` 依赖；生产源码、包清单和依赖禁止引用 `seektty`，文档可以说明跨项目验收边界。
+- 兼容最低基线官方 `@deepseek-ai/dsh@0.1.0-rc.6`。本地/CI 合同是 **pinned rc.6 + rc.7 + rc.8 + 0.1.1-rc.2 + 动态 latest**，并在 `next ≠ latest` 时加跑 `next`，与精确 pin 去重。`0.1.1-rc.1` 只保留为历史复现，不是生产 pin。公开表只把实际跑过的精确版本标为已验证。对未发布版本只做能力探测、版本化适配、安全降级；不虚构“已验证”，不硬锁 rc.6/rc.7 私有实现。rc.6 元包的 `^` 依赖可能解析到更新组件，报告必须写清组件图。
 - 共享词汇不得改名：`start` / `answer` / `accept` / `refine` / `cancel` / `fetchDraft`，`processId` / `sessionId` / `contextVersion` / `modelRouteId`，`question` / `options` / `multiple` / `allowCustom`，状态 `running` / `cancelled` / `stale` / `complete`。
 - `multiple=false` 时 `selectedOptionIds` 恰好一个；`multiple=true` 时至少一个。`selectedOptionIds` 与 `customText` 严格 XOR。
 - `complete` 后必须单独 `fetchDraft` 才返回 draft。`stale` 胜出：不得继续消费 question / options / draft。

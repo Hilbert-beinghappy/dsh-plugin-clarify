@@ -86,6 +86,14 @@ describe('published package contract', () => {
     expect(ci).not.toMatch(/node-version: '24'/)
   })
 
+  it('keeps repository instructions aligned with the unreleased package and contract pins', () => {
+    const instructions = readFileSync(join(root, 'AGENTS.md'), 'utf8')
+    expect(instructions).toContain('当前未发布目标 `0.2.2`')
+    expect(instructions).toContain('pinned rc.6 + rc.7 + rc.8 + 0.1.1-rc.2 + 动态 latest')
+    expect(instructions).toContain('`0.1.1-rc.1` 只保留为历史复现，不是生产 pin')
+    expect(instructions).not.toContain('当前未发布目标 `0.2.1`')
+  })
+
   it('rejects AppleDouble and Finder metadata pack entries without shipping the helper', () => {
     expect(isForbiddenPackEntry('package/lib/._index.js')).toBe(true)
     expect(isForbiddenPackEntry('package/._README.md')).toBe(true)

@@ -148,7 +148,8 @@ describe('checked-in T1 evidence stays internally consistent', () => {
 
   for (const version of PINNED_CONTRACT_VERSIONS) {
     const evidencePath = join(root, 'docs/t0-evidence', version, 't1-lifecycle.json')
-    it.skipIf(!existsSync(evidencePath))(`${version} dump flags match excerpts; standalone 通过; doctor 待联调; T1 未完全通过`, () => {
+    it(`${version} dump flags match excerpts; standalone 通过; doctor 待联调; T1 未完全通过`, () => {
+      expect(existsSync(evidencePath)).toBe(true)
       const t1 = JSON.parse(readFileSync(join(root, 'docs/t0-evidence', version, 't1-lifecycle.json'), 'utf8')) as {
         verdict: string
         standaloneVerdict?: string
@@ -186,7 +187,8 @@ describe('checked-in Host T3 provenance', () => {
   const root = fileURLToPath(new URL('..', import.meta.url))
   for (const version of PINNED_CONTRACT_VERSIONS) {
     const evidencePath = join(root, 'docs/t0-evidence', version, 'host-t3.json')
-    it.skipIf(!existsSync(evidencePath))(`${version} host-t3 session is an isolation fixture`, () => {
+    it(`${version} host-t3 session is an isolation fixture`, () => {
+      expect(existsSync(evidencePath)).toBe(true)
       const hostT3 = JSON.parse(readFileSync(join(root, 'docs/t0-evidence', version, 'host-t3.json'), 'utf8')) as {
         sessionDiscovery: {
           source: string

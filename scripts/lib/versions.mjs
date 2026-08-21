@@ -9,6 +9,7 @@ export const PINNED_CONTRACT_VERSIONS = [
   PINNED_DSH_VERSION_LEGACY_RC8,
   PINNED_DSH_VERSION,
 ]
+export const HISTORICAL_OBSERVATION_VERSIONS = ['0.1.1-rc.1']
 
 export function uniqueContractVersions({ latest, next, extra = [] } = {}) {
   const versions = new Set(PINNED_CONTRACT_VERSIONS)

@@ -3,6 +3,8 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { classifyLaneSpawn, formatLaneSpawnFailure } from '../scripts/lib/matrix-lane.mjs'
+import { HISTORICAL_MATRIX_HEADING, matrixSummaryProvenanceLine } from '../scripts/lib/matrix-summary.mjs'
+import { HISTORICAL_OBSERVATION_VERSIONS, PINNED_CONTRACT_VERSIONS, uniqueContractVersions } from '../scripts/lib/versions.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 
@@ -87,5 +89,22 @@ describe('matrix lane helper stays a local script, not a published file', () => 
     expect(matrix).not.toMatch(/result\.signal === 'SIGTERM'/)
     expect(matrix).not.toMatch(/after \$\{LANE_TIMEOUT_MS\}ms/)
     expect(pkg.files?.join('\n')).not.toMatch(/matrix-lane|scripts\//)
+  })
+})
+
+describe('matrix summary provenance', () => {
+  it('keeps historical observations outside the production contract matrix', () => {
+    expect(HISTORICAL_OBSERVATION_VERSIONS).toEqual(['0.1.1-rc.1'])
+    expect(PINNED_CONTRACT_VERSIONS).not.toContain('0.1.1-rc.1')
+    expect(uniqueContractVersions({ latest: '0.1.1-rc.2', next: '0.1.1-rc.2' })).not.toContain('0.1.1-rc.1')
+    expect(HISTORICAL_MATRIX_HEADING).toContain('不计入矩阵通过率')
+  })
+
+  it('distinguishes a Host matrix run from an evidence-only summary refresh', () => {
+    const versions = ['0.1.0-rc.8', '0.1.1-rc.2']
+    expect(matrixSummaryProvenanceLine({ fromEvidence: true, versions }))
+      .toBe('> 摘要由已有精确版本证据刷新，未重跑 Host。当前合同行：`0.1.0-rc.8`, `0.1.1-rc.2`。')
+    expect(matrixSummaryProvenanceLine({ fromEvidence: false, versions }))
+      .toBe('> 本次矩阵已逐一重跑合同行：`0.1.0-rc.8`, `0.1.1-rc.2`。各版本证据写入 `docs/t0-evidence/<version>/`。')
   })
 })
