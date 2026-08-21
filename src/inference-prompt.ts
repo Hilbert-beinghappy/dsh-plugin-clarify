@@ -155,9 +155,20 @@ function budgetModelVisibleHistory(options: {
   if (maximumInputTokens <= fixedTokens) {
     throw new ClarifyError('INFERENCE_UNAVAILABLE', 'Clarify prompt overhead does not fit the model context window', 'configuration')
   }
-  const fixedJson = JSON.stringify(options.fixedData)
-  const fixedBody = fixedJson.slice(1, -1)
-  const historyPrefix = `{${fixedBody}${fixedBody ? ',' : ''}"sessionHistory":[`
+  const stableHead = {
+    sessionSystem: options.fixedData.sessionSystem,
+    seedText: options.fixedData.seedText,
+  }
+  const dynamicTail: Record<string, unknown> = {
+    acceptedDecisions: options.fixedData.acceptedDecisions,
+    priorPublishedDraft: options.fixedData.priorPublishedDraft,
+    refineFeedback: options.fixedData.refineFeedback,
+  }
+  if ('repairAttempt' in options.fixedData) {
+    dynamicTail.repairAttempt = options.fixedData.repairAttempt
+  }
+  const historyPrefix = `${JSON.stringify(stableHead).slice(0, -1)},"sessionHistory":[`
+  const tailBody = JSON.stringify(dynamicTail).slice(1, -1)
   const serializedMessages = sanitized.map((message) => JSON.stringify(message))
   const historyPrefixTokens = utf8UpperBoundTokens(historyPrefix)
   let includedMessageTokens = 0
@@ -168,7 +179,7 @@ function budgetModelVisibleHistory(options: {
     const candidateMessageTokens = includedMessageTokens
       + utf8UpperBoundTokens(serialized)
       + (includedCount > 0 ? 1 : 0)
-    const suffix = `],"omittedMessageCount":${omittedMessageCount + index},"omittedNonTextBlocks":${omittedNonTextBlocks}}`
+    const suffix = `],"omittedMessageCount":${omittedMessageCount + index},"omittedNonTextBlocks":${omittedNonTextBlocks},${tailBody}}`
     const candidateTokens = fixedTokens + historyPrefixTokens + candidateMessageTokens + utf8UpperBoundTokens(suffix)
     if (candidateTokens > maximumInputTokens) break
     includedMessageTokens = candidateMessageTokens
@@ -179,7 +190,7 @@ function budgetModelVisibleHistory(options: {
     throw new ClarifyError('INFERENCE_UNAVAILABLE', 'the newest Session text does not fit the model context window', 'configuration')
   }
   omittedMessageCount += sanitized.length - includedCount
-  const suffix = `],"omittedMessageCount":${omittedMessageCount},"omittedNonTextBlocks":${omittedNonTextBlocks}}`
+  const suffix = `],"omittedMessageCount":${omittedMessageCount},"omittedNonTextBlocks":${omittedNonTextBlocks},${tailBody}}`
   const json = `${historyPrefix}${serializedMessages.slice(firstIncludedIndex).join(',')}${suffix}`
   if (fixedTokens + utf8UpperBoundTokens(json) > maximumInputTokens) {
     throw new ClarifyError('INFERENCE_UNAVAILABLE', 'Clarify prompt data does not fit the model context window', 'configuration')

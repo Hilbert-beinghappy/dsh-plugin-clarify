@@ -19,9 +19,9 @@ describe('published package contract', () => {
     dsh?: { bundle?: { patch?: string } }
   }
 
-  it('is the unreleased 0.2.0 package named dsh-plugin-clarify', () => {
+  it('is the unreleased 0.2.1 package named dsh-plugin-clarify', () => {
     expect(pkg.name).toBe('dsh-plugin-clarify')
-    expect(pkg.version).toBe('0.2.0')
+    expect(pkg.version).toBe('0.2.1')
   })
 
   it('declares official dsh.bundle.patch so plugin add can reconcile the layer', () => {
