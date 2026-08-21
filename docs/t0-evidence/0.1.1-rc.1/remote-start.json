@@ -1,0 +1,16 @@
+{
+  "type": "server-response",
+  "rpcId": "<ephemeral-uuid>",
+  "result": {
+    "ok": true,
+    "value": {
+      "protocol": "clarify.wire/1",
+      "ok": false,
+      "error": {
+        "code": "PROCESS_NOT_FOUND",
+        "message": "session missing-session is not available through the public sessions service",
+        "category": "protocol"
+      }
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "a": "可行",
+  "b": "阻塞",
+  "c": "可行",
+  "d": "阻塞",
+  "reasons": {
+    "a": "直接 ctx.llm.stream（探针 adapter、no-tools、未 markAgentLoopRequest）成功，且 session 事件/deriveMessages 计数未增加。未证明走 Session 现网 provider 路由",
+    "b": "requestHeader() is undefined on a fresh session; public API has no context revision id besides the forbidden session.seq fallback",
+    "c": "typert.local 已 claim 六端点，且 Gateway 或 /api 信封以 Clarify 业务错误/结果命中 receiver",
+    "d": "未用已存在的用户 Session 证明 Harness usage 归属；禁止用探针新建 Session、假 assistant/message、私有计量器或未证明的 Session 日志写入来伪装 (d)"
+  },
+  "hostT3": {
+    "ok": false,
+    "blocked": true,
+    "envelopeLive": true,
+    "reason": "INFERENCE_UNAVAILABLE: real inference engine is not authorized; error: start returned no question; error: answer-1 returned no question; error: complete was not reached",
+    "sessionSource": "t0-probe-test-fixture",
+    "createdByHarness": true,
+    "productionPluginCreated": false
+  },
+  "remoteLive": true
+}

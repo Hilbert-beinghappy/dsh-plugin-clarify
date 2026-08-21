@@ -14,6 +14,7 @@ import {
 } from '../scripts/lib/matrix-row.mjs'
 import { sanitize } from '../scripts/lib/sanitize.mjs'
 import { pendingCrossProjectDoctor } from '../scripts/lib/t1-verdicts.mjs'
+import { PINNED_CONTRACT_VERSIONS } from '../scripts/lib/versions.mjs'
 
 function officialThenClarifyDump() {
   return `# == @deepseek-ai/dsh-base\n${'x'.repeat(4500)}\n# == dsh-plugin-clarify\n  name: dsh-plugin-clarify\n`
@@ -133,8 +134,22 @@ describe('Host T3 session fixture labels', () => {
 
 describe('checked-in T1 evidence stays internally consistent', () => {
   const root = fileURLToPath(new URL('..', import.meta.url))
-  for (const version of ['0.1.0-rc.6', '0.1.0-rc.7', '0.1.0-rc.8']) {
+
+  it('accepts 0.1.1-rc.2 as the fourth pinned evidence lane without fabricating files', () => {
+    expect([...PINNED_CONTRACT_VERSIONS]).toEqual(['0.1.0-rc.6', '0.1.0-rc.7', '0.1.0-rc.8', '0.1.1-rc.2'])
+    expect(PINNED_CONTRACT_VERSIONS).not.toContain('0.1.1-rc.1')
+  })
+
+  it('keeps the same-day replaced 0.1.1-rc.1 evidence directory as historical, not a production pin', () => {
+    expect(existsSync(join(root, 'docs/t0-evidence/0.1.1-rc.1/t0-blocking-report.md'))).toBe(true)
+    expect(existsSync(join(root, 'docs/t0-evidence/0.1.1-rc.1/t1-report.md'))).toBe(true)
+    expect(PINNED_CONTRACT_VERSIONS).not.toContain('0.1.1-rc.1')
+  })
+
+  for (const version of PINNED_CONTRACT_VERSIONS) {
+    const evidencePath = join(root, 'docs/t0-evidence', version, 't1-lifecycle.json')
     it(`${version} dump flags match excerpts; standalone 通过; doctor 待联调; T1 未完全通过`, () => {
+      expect(existsSync(evidencePath)).toBe(true)
       const t1 = JSON.parse(readFileSync(join(root, 'docs/t0-evidence', version, 't1-lifecycle.json'), 'utf8')) as {
         verdict: string
         standaloneVerdict?: string
@@ -170,8 +185,10 @@ describe('checked-in T1 evidence stays internally consistent', () => {
 
 describe('checked-in Host T3 provenance', () => {
   const root = fileURLToPath(new URL('..', import.meta.url))
-  for (const version of ['0.1.0-rc.6', '0.1.0-rc.7', '0.1.0-rc.8']) {
+  for (const version of PINNED_CONTRACT_VERSIONS) {
+    const evidencePath = join(root, 'docs/t0-evidence', version, 'host-t3.json')
     it(`${version} host-t3 session is an isolation fixture`, () => {
+      expect(existsSync(evidencePath)).toBe(true)
       const hostT3 = JSON.parse(readFileSync(join(root, 'docs/t0-evidence', version, 'host-t3.json'), 'utf8')) as {
         sessionDiscovery: {
           source: string

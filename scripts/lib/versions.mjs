@@ -1,7 +1,15 @@
 import { execFileSync } from 'node:child_process'
 
 export const MINIMUM_DSH_VERSION = '0.1.0-rc.6'
-export const PINNED_CONTRACT_VERSIONS = ['0.1.0-rc.6', '0.1.0-rc.7', '0.1.0-rc.8']
+export const PINNED_DSH_VERSION_LEGACY_RC8 = '0.1.0-rc.8'
+export const PINNED_DSH_VERSION = '0.1.1-rc.2'
+export const PINNED_CONTRACT_VERSIONS = [
+  '0.1.0-rc.6',
+  '0.1.0-rc.7',
+  PINNED_DSH_VERSION_LEGACY_RC8,
+  PINNED_DSH_VERSION,
+]
+export const HISTORICAL_OBSERVATION_VERSIONS = ['0.1.1-rc.1']
 
 export function uniqueContractVersions({ latest, next, extra = [] } = {}) {
   const versions = new Set(PINNED_CONTRACT_VERSIONS)

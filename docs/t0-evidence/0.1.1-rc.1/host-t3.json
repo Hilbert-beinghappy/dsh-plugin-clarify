@@ -1,0 +1,88 @@
+{
+  "ok": false,
+  "blocked": true,
+  "reason": "INFERENCE_UNAVAILABLE: real inference engine is not authorized; error: start returned no question; error: answer-1 returned no question; error: complete was not reached",
+  "interactive": false,
+  "envelopeLive": true,
+  "endpoints": {
+    "start": {
+      "status": 200,
+      "envelope": "server-response",
+      "ok": false,
+      "errorCode": "PROCESS_NOT_FOUND",
+      "errorMessage": "session missing-session is not available through the public sessions service",
+      "live": true
+    },
+    "answer": {
+      "status": 200,
+      "envelope": "server-response",
+      "ok": false,
+      "errorCode": "PROCESS_NOT_FOUND",
+      "errorMessage": "process missing-process does not exist",
+      "live": true
+    },
+    "accept": {
+      "status": 200,
+      "envelope": "server-response",
+      "ok": false,
+      "errorCode": "PROCESS_NOT_FOUND",
+      "errorMessage": "process missing-process does not exist",
+      "live": true
+    },
+    "refine": {
+      "status": 200,
+      "envelope": "server-response",
+      "ok": false,
+      "errorCode": "PROCESS_NOT_FOUND",
+      "errorMessage": "process missing-process does not exist",
+      "live": true
+    },
+    "cancel": {
+      "status": 200,
+      "envelope": "server-response",
+      "ok": false,
+      "errorCode": "PROCESS_NOT_FOUND",
+      "errorMessage": "process missing-process does not exist",
+      "live": true
+    },
+    "fetchDraft": {
+      "status": 200,
+      "envelope": "server-response",
+      "ok": false,
+      "errorCode": "PROCESS_NOT_FOUND",
+      "errorMessage": "process missing-process does not exist",
+      "live": true
+    }
+  },
+  "sessionDiscovery": {
+    "method": "session.list",
+    "listedBy": "session.list",
+    "source": "t0-probe-test-fixture",
+    "createdByHarness": true,
+    "productionPluginCreated": false,
+    "createdByThisScript": false,
+    "fixture": "isolated-test-fixture",
+    "note": "Session came from this T0 probe test fixture and was then found via session.list. Isolation only; production plugin and DIY must not create Session."
+  },
+  "steps": {
+    "draftPresent": false,
+    "completeHadDraft": false
+  },
+  "errors": [
+    {
+      "code": "INFERENCE_UNAVAILABLE",
+      "message": "real inference engine is not authorized",
+      "category": "configuration"
+    },
+    {
+      "message": "start returned no question"
+    },
+    {
+      "message": "answer-1 returned no question"
+    },
+    {
+      "message": "complete was not reached"
+    }
+  ],
+  "note": "GET /clarify static HTML is not an interactive T3 pass. Session source=t0-probe-test-fixture, createdByHarness=true, productionPluginCreated=false. Isolation test fixture only; production plugin and DIY must not create Session."
+}
