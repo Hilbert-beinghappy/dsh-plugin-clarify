@@ -1,6 +1,6 @@
 # dsh-plugin-clarify
 
-独立的 DeepSeek Harness **Host 插件**（npm 包名 `dsh-plugin-clarify`，当前版本 `0.2.0`）。它基于当前真实 Session、用户草稿和真实模型路由运行临时澄清进程，由模型动态生成苏格拉底式问题、上下文相关选项、后续分支和逐答更新的 draft preview；最终只产出一段**待用户自行发送**的草稿文本。
+独立的 DeepSeek Harness **Host 插件**（npm 包名 `dsh-plugin-clarify`，当前版本 `0.2.1`）。它基于当前真实 Session、用户草稿和真实模型路由运行临时澄清进程，由模型动态生成苏格拉底式问题、上下文相关选项、后续分支和逐答更新的 draft preview；最终只产出一段**待用户自行发送**的草稿文本。
 
 SeekTTY 只是可选消费者。生产源码、包清单和依赖不引用 `seektty`，也不含 `workspace:` 依赖；文档仅说明跨项目验收边界。真实推理由同一 Host 进程中的 `dsh-plugin-auxiliary-runtime@0.1.0` 执行和单独计量，Clarify 不直接持有 LLM、凭据、存储或用量 projection。
 
@@ -45,7 +45,7 @@ Content-Type: application/json
 ```sh
 pnpm pack
 dsh plugin --profile web add ./dsh-plugin-auxiliary-runtime-0.1.0.tgz
-dsh plugin --profile web add ./dsh-plugin-clarify-0.2.0.tgz
+dsh plugin --profile web add ./dsh-plugin-clarify-0.2.1.tgz
 dsh --profile web
 ```
 
@@ -53,7 +53,7 @@ dsh --profile web
 
 ```sh
 dsh plugin --profile web remove dsh-plugin-clarify
-dsh plugin --profile web add ./dsh-plugin-clarify-0.2.0.tgz
+dsh plugin --profile web add ./dsh-plugin-clarify-0.2.1.tgz
 ```
 
 生产组合在 Host 上注册：

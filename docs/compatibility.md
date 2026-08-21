@@ -1,6 +1,6 @@
 # 兼容矩阵
 
-历史探针矩阵覆盖官方 `@deepseek-ai/dsh` rc.6 / rc.7 / rc.8。当前 `0.2.0` 完整动态推理组合只在 **精确 rc.8** 上主张兼容，并要求同一 Host 进程提供 `dsh-plugin-auxiliary-runtime@0.1.0`。旧探针结果不自动升级为生产组合声明。
+历史探针矩阵覆盖官方 `@deepseek-ai/dsh` rc.6 / rc.7 / rc.8。当前 `0.2.1` 是相对已发布 `0.2.0` 的 **prompt 序列化-only 补丁**：完整动态推理组合仍只继承 **精确 rc.8** 兼容主张，并要求同一 Host 进程提供 `dsh-plugin-auxiliary-runtime@0.1.0`。旧探针结果不自动升级为生产组合声明。
 
 2026-08-21 的发布前标签快照：`latest=0.1.0-rc.7`、`next=0.1.1-rc.1`。动态标签只用于发现回归；当前完整动态组合既不跟随 `latest`，也不声明兼容 `next`，唯一已验证 Host 仍是精确 `0.1.0-rc.8`。标签变化后以 `npm view @deepseek-ai/dsh dist-tags` 为准。
 
@@ -8,7 +8,7 @@ rc.6 元包声明 `^0.1.0-rc.6` 组件，今天会解析到 rc.7 的 base/typert
 
 公开表只把实际跑过第 11 节合同的精确版本标为“已验证”。`latest` / `next` 是动态发现，不是对未发布版本的保证。对尚未发布的未来版本只使用公开能力探测、包内版本化适配器和安全降级。
 
-Clarify `0.2.0` 的六个 Remote 方法公开返回 `clarify.wire/1` 内层结果联合，作为官方 Gateway 外层成功值。SeekTTY `1.2.0` 必须先认 `protocol` 再认 echo；目录启发式可以显示旧六方法 Host，但激活要求 `fetchDraft` 与 `refine` 同时给出外层成功 + 内层 v1 `PROCESS_NOT_FOUND`。2026-08-21 已在未修改的官方 rc.8、隔离 `DSH_HOME` 和真实 PTY 上完成三项目安装、启动、移除重装、动态多轮、采用但不发送、用量来源与隐私检查；远端发布仍必须通过各仓 PR CI、合并后打包和发布后再安装验收。
+Clarify `0.2.1` 继承 `0.2.0` 的公开 Remote 合同与兼容边界：六个方法公开返回 `clarify.wire/1` 内层结果联合，作为官方 Gateway 外层成功值；边界仍是精确官方 `@deepseek-ai/dsh@0.1.0-rc.8` + `dsh-plugin-auxiliary-runtime@0.1.0` + SeekTTY `1.2.0`。SeekTTY `1.2.0` 必须先认 `protocol` 再认 echo；目录启发式可以显示旧六方法 Host，但激活要求 `fetchDraft` 与 `refine` 同时给出外层成功 + 内层 v1 `PROCESS_NOT_FOUND`。该边界来自 2026-08-21 在未修改官方 rc.8、隔离 `DSH_HOME` 和真实 PTY 上完成的三项目联合验收。`0.2.1` 只改 prompt 序列化，发布前未完成新的真实 Provider A/B；Release 后须重新下载资产、核对校验和并重做关键验收，此前不主张该项证据已闭合。
 
 | 合同 | 命令 |
 | --- | --- |
