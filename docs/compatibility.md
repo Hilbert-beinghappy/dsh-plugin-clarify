@@ -11,7 +11,7 @@ Clarify `0.2.2` 的生产目标是精确官方 `@deepseek-ai/dsh@0.1.1-rc.2` + �
 - T0：CLI `0.1.1-rc.2`，base `0.1.1-rc.2`，非混合树；(a) 可行、(b) 阻塞、(c) 可行、(d) 阻塞。Host T3 信封 live，但回合因 `INFERENCE_UNAVAILABLE`（隔离 Host 未装 Auxiliary，未授权真实推理）阻塞。Session `source=t0-probe-test-fixture`。证据：`docs/t0-evidence/0.1.1-rc.2/`。
 - standalone T1：add / boot / remove / re-add 通过；cross-project `/doctor` 待联调；T1 完全通过未完成。证据：`docs/t0-evidence/0.1.1-rc.2/t1-report.md`。该「待联调」只表示 T1 脚本未跑 cross-project doctor。
 - 三项目 Lane A（2026-08-21，未修改 stock `0.1.1-rc.2`、隔离 `DSH_HOME`、真实 PTY、候选 Clarify `0.2.2` + Auxiliary `0.1.1` + SeekTTY `1.2.1`）：`/doctor` 0 error / 0 warning、99 plugins running；`/status` 健康；`/clarify` 路由到 Auxiliary 后无 key 返回 `MISSING_CREDENTIAL` 且保留 composer；Vision-Exp 可见且可选择；PNG 附件 `/restart` 成功恢复。丢失源文件恢复：单测保证失败文案只用 basename、覆盖两种通知顺序、绝对路径不进文案；真实 PTY hardcopy/可见区扫描只检出 ASCII basename `vision-logo.png`，未检出 `private/tmp`、`/tmp`、`Users`、`Volumes`。不能证明关闭无 key onboarding modal 后该 restore error 仍持续显示（Esc 也会清 notice）。不是 Release。
-- Lane B 仍阻断：缺 `DEEPSEEK_API_KEY`，尚未真实完成 Clarify 成功动态多轮、accept 回 composer 且不自动发送、PNG 与 JPEG 视觉理解、成功发送后附件清除。
+- Lane B（2026-08-22，未修改 stock `0.1.1-rc.2`、隔离 `DSH_HOME`、`candidate4`）：已显式选择 Vision-Exp；PNG image-only 发送成功、发送即清附件并识别 logo，但纯图无问题导致模型又调用 `read_image`；真实 JFIF JPEG 经 SeekTTY 入队、官方 Host 正常转 PNG variant 后，无工具 OCR 成功；Clarify 经 Auxiliary 完成 6 轮动态问答、41 行完整审阅、二次确认 accept 回 composer 且不自动发送；`/status` 可见官方／辅助／组合用量；895 文件扫描 secret literal 为 0。不是 Release，也不是完整联合验收。未证明 Web UI、GIF/WebP、超限拒绝、JPEG 原字节直通、PNG 完全不靠工具、本轮中断恢复、成本／缓存 A/B。
 - 本轮未跑全矩阵。
 
 公开表只把实际跑过第 11 节合同的精确版本标为“已验证”。`latest` / `next` 是动态发现，与 pin 重复时按精确版本去重，不是对未发布版本的保证。对尚未发布的未来版本只使用公开能力探测、包内版本化适配器和安全降级。

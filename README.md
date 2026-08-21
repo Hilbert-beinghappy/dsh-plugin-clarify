@@ -154,7 +154,7 @@ dsh plugin --profile tui add https://github.com/Hilbert-beinghappy/dsh-plugin-cl
 
 ### 未发布新目标 `0.2.2`
 
-`0.2.2` 的生产目标是精确 Host `0.1.1-rc.2` + Auxiliary Runtime `0.1.1`。`0.1.0-rc.8` 仍作为 admission pin，可配 Auxiliary `0.1.0` 或 `0.1.1`。这不是已发布 Release，也不是完整联合验收。Lane A 无 key 真实 PTY 已观察；Lane B 因缺少 `DEEPSEEK_API_KEY` 仍阻断。`docs/t0-evidence/0.1.1-rc.1/` 是同日被替换版本的历史观察，不能代替 `0.1.1-rc.2`。
+`0.2.2` 的生产目标是精确 Host `0.1.1-rc.2` + Auxiliary Runtime `0.1.1`。`0.1.0-rc.8` 仍作为 admission pin，可配 Auxiliary `0.1.0` 或 `0.1.1`。这不是已发布 Release，也不是完整联合验收。Lane A 无 key 真实 PTY 已观察；Lane B 于 2026-08-22 在 `candidate4` 上已观察，详见 [接口与兼容](#接口与兼容)。`docs/t0-evidence/0.1.1-rc.1/` 是同日被替换版本的历史观察，不能代替 `0.1.1-rc.2`。
 
 安装顺序：先在 Auxiliary Runtime 源码树 `pnpm pack` 得到 `dsh-plugin-auxiliary-runtime-0.1.1.tgz`（尚无 `v0.1.1` GitHub Release 资产，不要编造下载 URL）。本仓库 `pnpm pack` **只**生成 `dsh-plugin-clarify-0.2.2.tgz`，再本地 add Clarify。
 
@@ -199,7 +199,7 @@ Content-Type: application/json
 | 栈 | 状态 | 组合 | 证据 |
 | --- | --- | --- | --- |
 | 已发布旧栈 | 已联合验收 | Host `0.1.0-rc.8` + Clarify `0.2.1` + Auxiliary `0.1.0` + SeekTTY `1.2.0` | 2026-08-21 隔离 `DSH_HOME` / 真实 PTY；`0.2.1` 无 Key 复验 add／boot／remove／re-add 与隔离 `MISSING_CREDENTIAL` |
-| 未发布新目标 `0.2.2` | Lane A 已观察；Lane B 阻断；非 Release / 非完整联合验收 | Host `0.1.1-rc.2` + Auxiliary `0.1.1` + SeekTTY `1.2.1`；rc.8 仍可配 Auxiliary `0.1.0` 或 `0.1.1` | 2026-08-21 未修改 stock rc.2、隔离 `DSH_HOME`、真实 PTY：`/doctor` 0 error / 0 warning、99 plugins running；`/status` 健康；`/clarify` 到 Auxiliary 后无 key 返回 `MISSING_CREDENTIAL` 且保留 composer；Vision-Exp 可见可选；PNG `/restart` 恢复。丢失源文件：单测仅 basename、两种通知顺序、无绝对路径；hardcopy/可见区只检出 `vision-logo.png`，未检出 `private/tmp`/`/tmp`/`Users`/`Volumes`；不能证明关 onboarding modal 后 restore error 仍显示（Esc 清 notice）。T0/T1 脚本仍是 standalone（T1 写 `/doctor` 待联调 = 脚本未跑 cross-project doctor）。Lane B：无 `DEEPSEEK_API_KEY`，未做成功动态多轮、accept 回 composer 不自动发送、PNG/JPEG 视觉理解、发送后清附件 |
+| 未发布新目标 `0.2.2` | Lane A 已观察；Lane B 已观察；非 Release / 非完整联合验收 | Host `0.1.1-rc.2` + Auxiliary `0.1.1` + SeekTTY `1.2.1`；rc.8 仍可配 Auxiliary `0.1.0` 或 `0.1.1` | 2026-08-21 未修改 stock rc.2、隔离 `DSH_HOME`、真实 PTY：`/doctor` 0 error / 0 warning、99 plugins running；`/status` 健康；`/clarify` 到 Auxiliary 后无 key 返回 `MISSING_CREDENTIAL` 且保留 composer；Vision-Exp 可见可选；PNG `/restart` 恢复。丢失源文件：单测仅 basename、两种通知顺序、无绝对路径；hardcopy/可见区只检出 `vision-logo.png`，未检出 `private/tmp`/`/tmp`/`Users`/`Volumes`；不能证明关 onboarding modal 后 restore error 仍显示（Esc 清 notice）。T0/T1 脚本仍是 standalone（T1 写 `/doctor` 待联调 = 脚本未跑 cross-project doctor）。Lane B（2026-08-22，未修改 stock rc.2、隔离 `DSH_HOME`、`candidate4`）：已显式选 Vision-Exp；PNG image-only 成功且发送即清附件、识别 logo，但纯图无问题导致模型又调用 `read_image`；真实 JFIF JPEG 经 SeekTTY 入队、官方 Host 正常转 PNG variant 后，无工具 OCR 成功；Clarify 经 Auxiliary 6 轮动态问答、41 行完整审阅、二次确认 accept 回 composer 且不自动发送；`/status` 有官方／辅助／组合用量；895 文件扫 secret literal 0。未证明 Web UI、GIF/WebP、超限拒绝、JPEG 原字节直通、PNG 完全不靠工具、本轮中断恢复、成本／缓存 A/B |
 
 - `0.2.1` 继承 `0.2.0` 的六方法 Remote、`clarify.wire/1` 和精确 rc.8 兼容边界。`0.2.0` live-provider 联合验收覆盖动态问题／选项／preview、多轮演进、采用后只写回输入框、中断恢复、用量来源和隐私。`0.2.1` 未重跑 live-provider 动态多轮，也没有 cache／cost A/B。
 - rc.6 / rc.7 只保留历史探针车道，不是 `0.2.2` 生产组合。
