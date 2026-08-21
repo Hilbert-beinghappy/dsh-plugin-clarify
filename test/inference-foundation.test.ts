@@ -11,10 +11,51 @@ interface PromptData {
   omittedNonTextBlocks: number
 }
 
-function promptData(request: ReturnType<typeof buildClarifyOneShotRequest>): PromptData {
+function promptJson(request: ReturnType<typeof buildClarifyOneShotRequest>): string {
   const text = request.messages[0].content[0].text
-  const jsonStart = text.indexOf('\n') + 1
-  return JSON.parse(text.slice(jsonStart)) as PromptData
+  return text.slice(text.indexOf('\n') + 1)
+}
+
+function promptData(request: ReturnType<typeof buildClarifyOneShotRequest>): PromptData {
+  return JSON.parse(promptJson(request)) as PromptData
+}
+
+const DATA_KEYS = [
+  'sessionSystem',
+  'seedText',
+  'sessionHistory',
+  'omittedMessageCount',
+  'omittedNonTextBlocks',
+  'acceptedDecisions',
+  'priorPublishedDraft',
+  'refineFeedback',
+] as const
+
+const LEGACY_DATA_KEYS = [
+  'sessionSystem',
+  'seedText',
+  'acceptedDecisions',
+  'priorPublishedDraft',
+  'refineFeedback',
+  'sessionHistory',
+  'omittedMessageCount',
+  'omittedNonTextBlocks',
+] as const
+
+function compactInOrder(data: Record<string, unknown>, keys: readonly string[]): string {
+  const ordered: Record<string, unknown> = {}
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(data, key)) ordered[key] = data[key]
+  }
+  return JSON.stringify(ordered)
+}
+
+function stableHistoryPrefix(data: Record<string, unknown>): string {
+  const head = JSON.stringify({
+    sessionSystem: data.sessionSystem,
+    seedText: data.seedText,
+  }).slice(0, -1)
+  return `${head},"sessionHistory":${JSON.stringify(data.sessionHistory)},"omittedMessageCount":${data.omittedMessageCount},"omittedNonTextBlocks":${data.omittedNonTextBlocks}`
 }
 
 function snapshot() {
@@ -297,6 +338,140 @@ describe('pure Clarify one-shot prompt', () => {
     expect(() => buildClarifyOneShotRequest({ sessionId: 'small-window', snapshot: tooSmall, acceptedDecisions: [] })).toThrowError(
       expect.objectContaining<Partial<ClarifyError>>({ code: 'INFERENCE_UNAVAILABLE' }),
     )
+  })
+})
+
+describe('model-visible DATA key order', () => {
+  const seedText = 'shared seed for prefix proof'
+  const acceptedDecisions = [
+    { questionText: 'Generated from this context?', answer: 'selected_options' as const, selectedOptionTexts: ['Generated from this context'] },
+  ]
+  const priorPublishedDraft = { draftPreview: 'Prior live draft P_n', materialChanges: ['last published change'] }
+
+  function trio() {
+    const captured = snapshot()
+    const start = buildClarifyOneShotRequest({
+      sessionId: 'session-private',
+      snapshot: captured,
+      seedText,
+      acceptedDecisions: [],
+    })
+    const answer = buildClarifyOneShotRequest({
+      sessionId: 'session-private',
+      snapshot: captured,
+      seedText,
+      acceptedDecisions,
+      priorPublishedDraft,
+    })
+    const refine = buildClarifyOneShotRequest({
+      sessionId: 'session-private',
+      snapshot: captured,
+      seedText,
+      acceptedDecisions,
+      priorPublishedDraft,
+      refineFeedback: 'add rollback',
+    })
+    return { start, answer, refine }
+  }
+
+  it('emits Object.keys in the exact stable-then-dynamic order', () => {
+    const { start, answer, refine } = trio()
+    for (const request of [start, answer, refine]) {
+      expect(Object.keys(JSON.parse(promptJson(request)) as object)).toEqual([...DATA_KEYS])
+    }
+    const repaired = buildClarifyOneShotRequest({
+      sessionId: 'session-private',
+      snapshot: snapshot(),
+      seedText,
+      acceptedDecisions,
+      priorPublishedDraft,
+    }, { repair: { raw: '{', reason: 'invalid JSON' } })
+    expect(Object.keys(JSON.parse(promptJson(repaired)) as object)).toEqual([...DATA_KEYS, 'repairAttempt'])
+  })
+
+  it('shares a start/answer/refine byte prefix that covers the complete sessionHistory and omitted counts', () => {
+    const { start, answer, refine } = trio()
+    const startJson = promptJson(start)
+    const answerJson = promptJson(answer)
+    const refineJson = promptJson(refine)
+    const startData = JSON.parse(startJson) as Record<string, unknown>
+    const prefix = stableHistoryPrefix(startData)
+    expect(prefix).toContain(`"sessionHistory":${JSON.stringify(startData.sessionHistory)}`)
+    expect(prefix).toContain(`"omittedMessageCount":${startData.omittedMessageCount}`)
+    expect(prefix).toContain(`"omittedNonTextBlocks":${startData.omittedNonTextBlocks}`)
+    expect(startJson.startsWith(prefix)).toBe(true)
+    expect(answerJson.startsWith(prefix)).toBe(true)
+    expect(refineJson.startsWith(prefix)).toBe(true)
+  })
+
+  it('keeps acceptedDecisions, priorPublishedDraft, refineFeedback, and repairAttempt out of the stable prefix', () => {
+    const { start, answer, refine } = trio()
+    const startJson = promptJson(start)
+    const prefix = stableHistoryPrefix(JSON.parse(startJson) as Record<string, unknown>)
+    expect(prefix).not.toMatch(/"acceptedDecisions"/)
+    expect(prefix).not.toMatch(/"priorPublishedDraft"/)
+    expect(prefix).not.toMatch(/"refineFeedback"/)
+    expect(prefix).not.toMatch(/"repairAttempt"/)
+    expect(startJson.slice(prefix.length)).toMatch(/^,"acceptedDecisions":/)
+    expect(promptJson(answer).slice(prefix.length)).toMatch(/^,"acceptedDecisions":/)
+    expect(promptJson(refine).slice(prefix.length)).toMatch(/^,"acceptedDecisions":/)
+  })
+
+  it('builds a repair request by appending repairAttempt after the main request\'s final brace', () => {
+    const captured = snapshot()
+    const input = {
+      sessionId: 'session-private' as const,
+      snapshot: captured,
+      seedText,
+      acceptedDecisions,
+      priorPublishedDraft,
+      refineFeedback: 'add rollback',
+    }
+    const mainJson = promptJson(buildClarifyOneShotRequest(input))
+    const repaired = buildClarifyOneShotRequest(input, { repair: { raw: '{', reason: 'invalid JSON' } })
+    const repairJson = promptJson(repaired)
+    const parsedRepair = JSON.parse(repairJson) as Record<string, unknown>
+    expect(repairJson).toBe(`${mainJson.slice(0, -1)},"repairAttempt":${JSON.stringify(parsedRepair.repairAttempt)}}`)
+    const { repairAttempt, ...rest } = parsedRepair
+    expect(rest).toEqual(JSON.parse(mainJson))
+    expect(repairAttempt).toEqual({
+      invalidOutput: '{',
+      parseFailure: 'invalid JSON',
+      instruction: 'Return the same intended result in exactly one allowed JSON shape. Do not add facts.',
+    })
+  })
+
+  it('keeps compact JSON UTF-8 length equal for the same selected history and field values after key reorder', () => {
+    const { start, answer, refine } = trio()
+    const repaired = buildClarifyOneShotRequest({
+      sessionId: 'session-private',
+      snapshot: snapshot(),
+      seedText,
+      acceptedDecisions,
+      priorPublishedDraft,
+    }, { repair: { raw: '{', reason: 'invalid JSON' } })
+    for (const request of [start, answer, refine]) {
+      const actual = promptJson(request)
+      const parsed = JSON.parse(actual) as Record<string, unknown>
+      expect(actual).toBe(compactInOrder(parsed, DATA_KEYS))
+      expect(Buffer.byteLength(actual, 'utf8')).toBe(Buffer.byteLength(compactInOrder(parsed, LEGACY_DATA_KEYS), 'utf8'))
+    }
+    const repairJson = promptJson(repaired)
+    const repairParsed = JSON.parse(repairJson) as Record<string, unknown>
+    const repairKeys = [...DATA_KEYS, 'repairAttempt']
+    const legacyRepairKeys = [
+      'sessionSystem',
+      'seedText',
+      'acceptedDecisions',
+      'priorPublishedDraft',
+      'refineFeedback',
+      'repairAttempt',
+      'sessionHistory',
+      'omittedMessageCount',
+      'omittedNonTextBlocks',
+    ]
+    expect(repairJson).toBe(compactInOrder(repairParsed, repairKeys))
+    expect(Buffer.byteLength(repairJson, 'utf8')).toBe(Buffer.byteLength(compactInOrder(repairParsed, legacyRepairKeys), 'utf8'))
   })
 })
 
