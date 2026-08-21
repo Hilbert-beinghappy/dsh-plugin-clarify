@@ -32,4 +32,89 @@ describe('T0 probe safety', () => {
       error: 'waiting for service: remote',
     })
   })
+
+  it('records that a direct usage chunk leaves official Session usage projections unchanged', async () => {
+    const session = {
+      id: 'existing-session',
+      events: [],
+      deriveMessages: () => [],
+      requestHeader: () => undefined,
+      surface: { nodes: [] },
+    }
+    const ctx = {
+      llm: {
+        registerAdapter() {},
+        async * stream() {
+          yield { type: 'usage', usage: { inputTokens: 3, outputTokens: 1 } }
+          yield { type: 'finish', reason: { kind: 'stop' } }
+        },
+      },
+      sessions: {
+        list: () => [session],
+        get: () => session,
+        create: () => session,
+      },
+      tokenMeter: {
+        measure: () => ({ logRevision: 0, totalTokens: 0 }),
+      },
+      sessionProjections: {
+        snapshot: () => ({
+          values: {
+            tokenUsage: {
+              uncachedInputTokens: 0,
+              outputTokens: 0,
+              cacheReadTokens: 0,
+              cacheWriteTokens: 0,
+            },
+          },
+        }),
+      },
+    }
+
+    const evidence = await collectProbeEvidence(ctx)
+    const usage = evidence.usage as Record<string, unknown>
+    expect(usage.sessionSource).toBe('existing')
+    expect(usage.chunkTypes).toEqual(['usage', 'finish'])
+    expect(usage.usageProjectionBefore).toEqual(usage.usageProjectionAfter)
+    expect(usage.usageProjectionAfter).toEqual({
+      uncachedInputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+    })
+    expect(usage.expectedUsageProjectionDelta).toEqual({
+      uncachedInputTokens: 3,
+      outputTokens: 1,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+    })
+    expect(usage.limits).toMatchObject({ status: 'unproven' })
+    expect(usage.cancellation).toMatchObject({ status: 'unproven' })
+  })
+
+  it('recognizes business arrivals inside clarify.wire/1 envelopes for all six methods', async () => {
+    const methods = ['start', 'answer', 'accept', 'refine', 'cancel', 'fetchDraft']
+    const evidence = await collectProbeEvidence({
+      typert: {
+        local: {
+          list: () => methods.map((method) => ({ namespace: 'clarify', method })),
+          get: () => ({}),
+        },
+      },
+      typertGateway: {
+        invoke: async ({ method }) => ({
+          protocol: 'clarify.wire/1',
+          ok: false,
+          error: {
+            code: method === 'start' ? 'SESSION_ID_REQUIRED' : 'PROCESS_NOT_FOUND',
+            message: method === 'start' ? 'sessionId is required' : 'process missing-process does not exist',
+            category: 'protocol',
+          },
+        }),
+      },
+    })
+    const consumer = (evidence.web as { consumerPath: Record<string, unknown> }).consumerPath
+    expect(consumer.status).toBe('observed')
+    expect(consumer.observed).toBe(6)
+  })
 })

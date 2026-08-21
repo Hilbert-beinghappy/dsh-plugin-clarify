@@ -1,8 +1,9 @@
-import { contextVersionFromModelVisible, modelRouteIdFromConfig } from './fingerprints.ts'
-import { ClarifyError, type HostBinding } from './types.ts'
+import { captureInferenceSnapshot } from './inference-snapshot.ts'
+import type { DefaultModelSelection } from './inference-snapshot.ts'
+import { ClarifyError, type ResolvedHostBinding } from './types.ts'
 
 export const CLARIFY_REMOTE_NAMESPACE = 'clarify'
-export const CLARIFY_REMOTE_METHODS = ['start', 'answer', 'cancel', 'fetchDraft'] as const
+export const CLARIFY_REMOTE_METHODS = ['start', 'answer', 'accept', 'refine', 'cancel', 'fetchDraft'] as const
 export type ClarifyRemoteMethod = (typeof CLARIFY_REMOTE_METHODS)[number]
 
 export const MINIMUM_DSH_VERSION = '0.1.0-rc.6'
@@ -16,6 +17,7 @@ export interface HostLike {
   typert?: TypertLike
   typertGateway?: TypertGatewayLike
   sessions?: SessionsCapability
+  agentDefaultModel?: { currentSelection?: () => DefaultModelSelection }
   webServer?: { register?: unknown; port?: number; host?: string }
   llm?: { stream?: unknown; registerAdapter?: unknown }
   tokenMeter?: { measure?: unknown }
@@ -52,6 +54,7 @@ export interface SessionCapability {
   id?: string
   requestHeader?: () => { config?: Record<string, unknown>; system?: unknown; tools?: unknown } | undefined
   deriveMessages?: () => unknown
+  requestContext?: () => unknown
   seq?: unknown
 }
 
@@ -119,7 +122,7 @@ export function detectHostCapabilities(ctx: object | undefined): HostCapabilitie
     sessionsGet: note(typeof sessions?.get === 'function', 'ctx.sessions.get'),
     requestHeader: {
       status: typeof sessions?.get === 'function' ? 'degraded' : 'unavailable',
-      detail: 'fresh sessions may omit requestHeader(); binding then hashes model-visible inputs and never uses session.seq',
+      detail: 'fresh sessions may omit requestHeader(); inference then fails closed and never uses session.seq as context identity',
     },
     llmStream: note(typeof llm?.stream === 'function', 'ctx.llm.stream'),
     tokenMeter: note(typeof tokenMeter?.measure === 'function', 'ctx.tokenMeter.measure'),
@@ -132,27 +135,24 @@ export function detectHostCapabilities(ctx: object | undefined): HostCapabilitie
   }
 }
 
-export function resolveBindingSafely(sessions: SessionsCapability | undefined, sessionId: string): HostBinding {
+export function resolveBindingSafely(
+  sessions: SessionsCapability | undefined,
+  sessionId: string,
+  readDefaultModel?: () => DefaultModelSelection | undefined,
+): ResolvedHostBinding {
   const session = sessions?.get?.(sessionId)
   if (!session) {
-    throw new ClarifyError('PROCESS_NOT_FOUND', `session ${sessionId} is not available through the public sessions service`)
+    throw new ClarifyError('PROCESS_NOT_FOUND', `session ${sessionId} is not available through the public sessions service`, 'protocol')
   }
-  const header = safeHeader(session)
   if (typeof session.seq === 'number' || typeof session.seq === 'string') {
     // session.seq is observed but forbidden as contextVersion.
   }
+  const snapshot = captureInferenceSnapshot(sessionId, session, Date.now(), readDefaultModel)
   return {
     sessionId,
-    contextVersion: contextVersionFromModelVisible({
-      system: typeof header?.system === 'string' ? header.system : undefined,
-      tools: header?.tools,
-      messages: session.deriveMessages?.() ?? [],
-    }),
-    modelRouteId: modelRouteIdFromConfig({
-      provider: asString(header?.config?.provider),
-      model: asString(header?.config?.model),
-      reasoningEffort: asString(header?.config?.reasoningEffort),
-    }),
+    contextVersion: snapshot.contextVersion,
+    modelRouteId: snapshot.modelRouteId,
+    snapshot,
   }
 }
 
@@ -174,17 +174,4 @@ function note(available: boolean, surface: string): CapabilityNote {
   return available
     ? { status: 'available', detail: `${surface} is present` }
     : { status: 'unavailable', detail: `${surface} is not a public function on this Host` }
-}
-
-function safeHeader(session: SessionCapability): { config?: Record<string, unknown>; system?: unknown; tools?: unknown } | undefined {
-  try {
-    const header = session.requestHeader?.()
-    return header && typeof header === 'object' ? header : undefined
-  } catch {
-    return undefined
-  }
-}
-
-function asString(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : undefined
 }

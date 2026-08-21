@@ -38,6 +38,6 @@ T1 完全通过：**未完成**
 ## 环境
 
 - 请求的元包：`@deepseek-ai/dsh@0.1.0-rc.6`
-- 解析组件：base `0.1.0-rc.7`
+- 解析组件：base `0.1.0-rc.8`
 - 混合树：`yes` — meta package uses caret ranges; resolved components may be newer than the requested meta version. This lane is not a pure single-version tree.
 - 隔离 `DSH_HOME`：`.probe-work/0.1.0-rc.6/homes/t1`

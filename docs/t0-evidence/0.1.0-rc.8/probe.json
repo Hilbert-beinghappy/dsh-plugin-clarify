@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-08-20T15:12:48.373Z",
+  "capturedAt": "<ephemeral-timestamp>",
   "dshHint": "0.1.0-rc.8",
   "services": {
     "llm": {
@@ -12,6 +12,9 @@
       "present": true
     },
     "tokenMeter": {
+      "present": true
+    },
+    "sessionProjections": {
       "present": true
     },
     "typert": {
@@ -89,13 +92,41 @@
       "surfaceTokens": 0,
       "nodes": []
     },
+    "usageProjectionBefore": {
+      "uncachedInputTokens": 0,
+      "outputTokens": 0,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0
+    },
+    "usageProjectionAfter": {
+      "uncachedInputTokens": 0,
+      "outputTokens": 0,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0
+    },
+    "expectedUsageProjectionDelta": {
+      "uncachedInputTokens": 3,
+      "outputTokens": 1,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0
+    },
+    "expectedTotalTokensDelta": 4,
+    "limits": {
+      "status": "unproven",
+      "reason": "this probe did not observe a public Host limits channel rejecting the auxiliary stream"
+    },
+    "cancellation": {
+      "status": "unproven",
+      "reason": "this probe did not observe a public Host cancellation channel aborting the auxiliary stream"
+    },
     "offTranscript": true,
     "probeCreatedSession": true,
     "sessionSource": "created-by-probe",
     "verdictNotes": [
       "Direct ctx.llm.stream was invoked without markAgentLoopRequest and without tools.",
       "If event/derived deltas are zero, the call did not append a transcript surface; usage still requires a Harness usage channel.",
-      "A probe-created session is only a P-usage fixture. It does not prove usage attribution on a bound user Session."
+      "A probe-created session is only a P-usage fixture. It does not prove usage attribution on a bound user Session.",
+      "Gate (d) also requires independent limits and cancellation observations; usage attribution alone cannot pass it."
     ]
   },
   "header": {
@@ -112,7 +143,7 @@
     "hasSessionSeq": true,
     "fingerprintFromEmptyHeader": {
       "contextVersion": "sha256:5ae0189d14e8bd64e7b1ee106e3d67e002a49cdf99394b78c9192a6af242e58f",
-      "modelRouteId": "sha256:2604f0c4ff0ba657556aad1dbc30225728eb7ca001d18c6542b5941157cb20b0"
+      "modelRouteId": "sha256:9ecec0dbe13c8fdb36f364f2001ba08cb71c98fac485d6c81f92f05d8f8194e9"
     },
     "liveSystemToolsChangeWithoutNewMessages": {
       "status": "blocked",
@@ -122,7 +153,7 @@
   "web": {
     "hasWebServer": true,
     "hasRegister": true,
-    "webServerPort": 59504,
+    "webServerPort": 53645,
     "webServerHost": "127.0.0.1",
     "hasClientModules": true,
     "clientGraphEntryCount": 42,
@@ -137,23 +168,14 @@
     "hasTypertGateway": true,
     "hasTypertGatewayInvoke": true,
     "typertLocalEndpoints": [
-      "clarify/start",
+      "clarify/accept",
       "clarify/answer",
       "clarify/cancel",
       "clarify/fetchDraft",
+      "clarify/refine",
+      "clarify/start",
       "commands/execute",
       "commands/list",
-      "goals/clear",
-      "goals/complete",
-      "goals/create",
-      "goals/edit",
-      "goals/pause",
-      "goals/resume",
-      "messageFeedback/delete",
-      "messageFeedback/list",
-      "messageFeedback/put",
-      "sessionReferenceResolver/candidates",
-      "pluginInventory/list",
       "dynamicCordisRunner/getClientCode",
       "dynamicCordisRunner/inventory",
       "dynamicCordisRunner/invoke",
@@ -165,11 +187,24 @@
       "dynamicCordisRunner/settleUserRun",
       "dynamicCordisRunner/stopFromPanel",
       "dynamicCordisRunner/syncInspectManifest",
-      "dynamicCordisRunner/undefineFromPanel"
+      "dynamicCordisRunner/undefineFromPanel",
+      "goals/clear",
+      "goals/complete",
+      "goals/create",
+      "goals/edit",
+      "goals/pause",
+      "goals/resume",
+      "messageFeedback/delete",
+      "messageFeedback/list",
+      "messageFeedback/put",
+      "pluginInventory/list",
+      "sessionReferenceResolver/candidates"
     ],
     "typertLocalExact": {
       "clarify/start": true,
       "clarify/answer": true,
+      "clarify/accept": true,
+      "clarify/refine": true,
       "clarify/cancel": true,
       "clarify/fetchDraft": true
     },
@@ -181,12 +216,16 @@
       "methods": [
         "start",
         "answer",
+        "accept",
+        "refine",
         "cancel",
         "fetchDraft"
       ],
       "endpoints": [
         "clarify/start",
         "clarify/answer",
+        "clarify/accept",
+        "clarify/refine",
         "clarify/cancel",
         "clarify/fetchDraft"
       ],
@@ -207,34 +246,64 @@
     "consumerPath": {
       "status": "observed",
       "path": "typertGateway.invoke",
-      "observed": 4,
+      "observed": 6,
       "endpoints": {
         "start": {
           "status": "hit",
           "kind": "business",
-          "error": "session clarify-probe-missing-session is not available through the public sessions service",
-          "code": "PROCESS_NOT_FOUND"
+          "resultKeys": [
+            "protocol",
+            "ok",
+            "error"
+          ]
         },
         "answer": {
           "status": "hit",
           "kind": "business",
-          "error": "process clarify-probe-missing-process does not exist",
-          "code": "PROCESS_NOT_FOUND"
+          "resultKeys": [
+            "protocol",
+            "ok",
+            "error"
+          ]
+        },
+        "accept": {
+          "status": "hit",
+          "kind": "business",
+          "resultKeys": [
+            "protocol",
+            "ok",
+            "error"
+          ]
+        },
+        "refine": {
+          "status": "hit",
+          "kind": "business",
+          "resultKeys": [
+            "protocol",
+            "ok",
+            "error"
+          ]
         },
         "cancel": {
           "status": "hit",
           "kind": "business",
-          "error": "process clarify-probe-missing-process does not exist",
-          "code": "PROCESS_NOT_FOUND"
+          "resultKeys": [
+            "protocol",
+            "ok",
+            "error"
+          ]
         },
         "fetchDraft": {
           "status": "hit",
           "kind": "business",
-          "error": "process clarify-probe-missing-process does not exist",
-          "code": "PROCESS_NOT_FOUND"
+          "resultKeys": [
+            "protocol",
+            "ok",
+            "error"
+          ]
         }
       },
-      "note": "only PROCESS_NOT_FOUND / SESSION_ID_REQUIRED / INVALID_ANSWER (or a process echo) prove the receiver; invocation-unavailable and HTTP 404 are infrastructure blocks"
+      "note": "only PROCESS_NOT_FOUND / PROCESS_BUSY / SESSION_ID_REQUIRED / INVALID_ANSWER (or a process echo) prove the receiver; invocation-unavailable and HTTP 404 are infrastructure blocks"
     },
     "hostDiyPaths": [
       "/clarify",

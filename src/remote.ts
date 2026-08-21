@@ -8,7 +8,16 @@ import {
   type TypertLike,
 } from './compat.ts'
 import { dispatchClarifyRpc } from './rpc.ts'
-import type { AnswerResponse, CancelResponse, FetchDraftResponse, StartResponse } from './types.ts'
+import {
+  asClarifyWireResult,
+  type AcceptResponse,
+  type AnswerResponse,
+  type CancelResponse,
+  type ClarifyWireResult,
+  type FetchDraftResponse,
+  type RefineResponse,
+  type StartResponse,
+} from './types.ts'
 
 export const CLARIFY_PACKAGE = 'dsh-plugin-clarify'
 
@@ -18,15 +27,18 @@ export interface ClarifyRemote {
     readonly serviceKey: string
     readonly namespace: string
   }
-  start(sessionId: string, seedText: string): Promise<StartResponse>
+  start(sessionId: string, seedText: string): Promise<ClarifyWireResult<StartResponse>>
   answer(
     processId: string,
     questionId: string,
+    previewVersion: string,
     selectedOptionIds: string[],
     customText: string,
-  ): Promise<AnswerResponse>
-  cancel(processId: string): Promise<CancelResponse>
-  fetchDraft(processId: string): Promise<FetchDraftResponse>
+  ): Promise<ClarifyWireResult<AnswerResponse>>
+  accept(processId: string, previewVersion: string): Promise<ClarifyWireResult<AcceptResponse>>
+  refine(processId: string, previewVersion: string, feedback: string): Promise<ClarifyWireResult<RefineResponse>>
+  cancel(processId: string): Promise<ClarifyWireResult<CancelResponse>>
+  fetchDraft(processId: string): Promise<ClarifyWireResult<FetchDraftResponse>>
 }
 
 export interface RemoteRegistration {
@@ -49,24 +61,31 @@ export function createClarifyRemote(service: ClarifyService): ClarifyRemote {
       return binding
     },
     async start(sessionId, seedText) {
-      return await dispatchClarifyRpc(service, 'start', omitUndefined({
+      return await asClarifyWireResult(() => dispatchClarifyRpc(service, 'start', omitUndefined({
         sessionId,
         seedText,
-      }))
+      })))
     },
-    async answer(processId, questionId, selectedOptionIds, customText) {
-      return await dispatchClarifyRpc(service, 'answer', omitUndefined({
+    async answer(processId, questionId, previewVersion, selectedOptionIds, customText) {
+      return await asClarifyWireResult(() => dispatchClarifyRpc(service, 'answer', omitUndefined({
         processId,
         questionId,
+        previewVersion,
         selectedOptionIds,
         customText,
-      }))
+      })))
+    },
+    async accept(processId, previewVersion) {
+      return await asClarifyWireResult(() => dispatchClarifyRpc(service, 'accept', { processId, previewVersion }))
+    },
+    async refine(processId, previewVersion, feedback) {
+      return await asClarifyWireResult(() => dispatchClarifyRpc(service, 'refine', omitUndefined({ processId, previewVersion, feedback })))
     },
     async cancel(processId) {
-      return await dispatchClarifyRpc(service, 'cancel', { processId })
+      return await asClarifyWireResult(() => dispatchClarifyRpc(service, 'cancel', { processId }))
     },
     async fetchDraft(processId) {
-      return await dispatchClarifyRpc(service, 'fetchDraft', { processId })
+      return await asClarifyWireResult(() => dispatchClarifyRpc(service, 'fetchDraft', { processId }))
     },
   }
   const binding = Object.freeze({
@@ -86,8 +105,18 @@ export function clarifyInvocationDescriptors(): readonly Record<string, unknown>
     descriptor('answer', [
       param('processId'),
       param('questionId'),
+      param('previewVersion'),
       param('selectedOptionIds'),
       param('customText'),
+    ]),
+    descriptor('accept', [
+      param('processId'),
+      param('previewVersion'),
+    ]),
+    descriptor('refine', [
+      param('processId'),
+      param('previewVersion'),
+      param('feedback'),
     ]),
     descriptor('cancel', [param('processId')]),
     descriptor('fetchDraft', [param('processId')]),
@@ -124,7 +153,10 @@ export function lastClarifyRemoteRegistration(): RemoteRegistration | undefined 
   return lastRegistration
 }
 
-export function registerClarifyRemote(ctx: HostLike, service: ClarifyService): RemoteRegistration {
+export function registerClarifyRemote(
+  ctx: HostLike,
+  service: ClarifyService,
+): RemoteRegistration {
   const remote = createClarifyRemote(service)
   const endpoints = CLARIFY_REMOTE_METHODS.map((method) => `${CLARIFY_REMOTE_NAMESPACE}/${method}`)
   const capabilities = detectHostCapabilities(ctx)
@@ -236,7 +268,7 @@ function omitUndefined(params: Record<string, unknown>): Record<string, unknown>
   const out: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined) continue
-    if (typeof value === 'string' && value.length === 0 && key !== 'sessionId' && key !== 'processId' && key !== 'questionId') {
+    if (typeof value === 'string' && value.length === 0 && key !== 'sessionId' && key !== 'processId' && key !== 'questionId' && key !== 'previewVersion') {
       continue
     }
     if (key === 'selectedOptionIds' && Array.isArray(value) && value.length === 0) continue

@@ -30,6 +30,50 @@ describe('T0 verdicts follow evidence only', () => {
     expect(JSON.stringify(probe.usage.usageMeasureBefore)).toBe(JSON.stringify(probe.usage.usageMeasureAfter))
   })
 
+  it('keeps (d) blocked when only request pressure changes but tokenUsage stays flat', () => {
+    expect(verdictD({
+      status: 'observed',
+      sessionSource: 'existing',
+      usageMeasureBefore: { totalTokens: 0 },
+      usageMeasureAfter: { totalTokens: 4 },
+      usageProjectionBefore: { outputTokens: 0 },
+      usageProjectionAfter: { outputTokens: 0 },
+    }).status).toBe('阻塞')
+  })
+
+  it('keeps (d) blocked when unrelated concurrent usage changes exceed the probe delta', () => {
+    expect(verdictD({
+      status: 'observed',
+      sessionSource: 'existing',
+      usageMeasureBefore: { totalTokens: 10 },
+      usageMeasureAfter: { totalTokens: 15 },
+      usageProjectionBefore: { uncachedInputTokens: 5, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 },
+      usageProjectionAfter: { uncachedInputTokens: 8, outputTokens: 7, cacheReadTokens: 0, cacheWriteTokens: 0 },
+      expectedTotalTokensDelta: 4,
+      expectedUsageProjectionDelta: { uncachedInputTokens: 3, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 },
+      limits: { status: 'observed' },
+      cancellation: { status: 'observed' },
+    }).status).toBe('阻塞')
+  })
+
+  it('requires exact attribution plus observed limits and cancellation for (d)', () => {
+    const evidence = {
+      status: 'observed',
+      sessionSource: 'existing',
+      usageMeasureBefore: { totalTokens: 10 },
+      usageMeasureAfter: { totalTokens: 14 },
+      usageProjectionBefore: { uncachedInputTokens: 5, outputTokens: 5, cacheReadTokens: 2, cacheWriteTokens: 1 },
+      usageProjectionAfter: { uncachedInputTokens: 8, outputTokens: 6, cacheReadTokens: 2, cacheWriteTokens: 1 },
+      expectedTotalTokensDelta: 4,
+      expectedUsageProjectionDelta: { uncachedInputTokens: 3, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 },
+      limits: { status: 'observed' },
+      cancellation: { status: 'observed' },
+    }
+    expect(verdictD(evidence).status).toBe('可行')
+    expect(verdictD({ ...evidence, limits: { status: 'unproven' } }).status).toBe('阻塞')
+    expect(verdictD({ ...evidence, cancellation: { status: 'unproven' } }).status).toBe('阻塞')
+  })
+
   it('keeps (d) blocked when measure changes only on a probe-created session', () => {
     expect(verdictD({
       status: 'observed',
@@ -78,11 +122,13 @@ describe('T0 verdicts follow evidence only', () => {
   it('marks (c) feasible only when local claim and business arrival coexist', () => {
     expect(verdictC({
       clarifyRemoteClaimed: true,
-      typertLocalEndpoints: ['clarify/start', 'clarify/answer', 'clarify/cancel', 'clarify/fetchDraft'],
+      typertLocalEndpoints: ['clarify/start', 'clarify/answer', 'clarify/accept', 'clarify/refine', 'clarify/cancel', 'clarify/fetchDraft'],
       consumerPath: {
         endpoints: {
           start: { status: 'hit', kind: 'business', code: 'PROCESS_NOT_FOUND' },
           answer: { status: 'hit', kind: 'business', code: 'PROCESS_NOT_FOUND' },
+          accept: { status: 'hit', kind: 'business', code: 'PROCESS_NOT_FOUND' },
+          refine: { status: 'hit', kind: 'business', code: 'PROCESS_NOT_FOUND' },
           cancel: { status: 'hit', kind: 'business', code: 'PROCESS_NOT_FOUND' },
           fetchDraft: { status: 'hit', kind: 'business', code: 'PROCESS_NOT_FOUND' },
         },

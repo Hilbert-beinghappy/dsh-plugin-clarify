@@ -1,14 +1,12 @@
 # dsh-plugin-clarify
 
-独立的 DeepSeek Harness **Host 插件**（npm 包名 `dsh-plugin-clarify`，版本 `0.1.0`）。它提供绑定当前 Session 与 context version 的临时澄清式推理进程：结构化提问，最终产出一段**待用户自行发送**的草稿文本。
+独立的 DeepSeek Harness **Host 插件**（npm 包名 `dsh-plugin-clarify`，当前版本 `0.2.0`）。它基于当前真实 Session、用户草稿和真实模型路由运行临时澄清进程，由模型动态生成苏格拉底式问题、上下文相关选项、后续分支和逐答更新的 draft preview；最终只产出一段**待用户自行发送**的草稿文本。
 
-SeekTTY 只是可选消费者。生产源码、包清单和依赖不引用 `seektty`，也不含 `workspace:` 依赖；文档仅说明跨项目验收边界。
+SeekTTY 只是可选消费者。生产源码、包清单和依赖不引用 `seektty`，也不含 `workspace:` 依赖；文档仅说明跨项目验收边界。真实推理由同一 Host 进程中的 `dsh-plugin-auxiliary-runtime@0.1.0` 执行和单独计量，Clarify 不直接持有 LLM、凭据、存储或用量 projection。
 
 ## 兼容范围
 
-最低基线：官方 `@deepseek-ai/dsh@0.1.0-rc.6`。
-
-发布前合同：pinned `rc.6` / `rc.7` / `rc.8`，当时 npm `latest`，以及与 `latest` 不同时的官方 `next`。2026-08-20 快照为 `latest=0.1.0-rc.7`、`next=0.1.0-rc.8`。公开兼容表只把实际跑过合同的精确版本标为已验证。对未发布版本只做能力探测、版本化适配、安全降级，不硬锁单一 rc。`GET /clarify` 必须绑定已有 `sessionId`，不会 `session.create`。
+完整动态推理的当前精确目标是官方 `@deepseek-ai/dsh@0.1.0-rc.8` 与 `dsh-plugin-auxiliary-runtime@0.1.0`。历史 rc.6/rc.7 探针证据仍保留，但不等于当前生产组合兼容声明。公开兼容表只把实际跑过最终联合合同的精确版本标为已验证。`GET /clarify` 必须绑定已有 `sessionId`，不会 `session.create`。
 
 精确说明见 `docs/compatibility.md`。T0 现场证据见 `docs/t0-evidence/<version>/`。
 
@@ -17,11 +15,12 @@ SeekTTY 只是可选消费者。生产源码、包清单和依赖不引用 `seek
 - 不发布 npm registry，不做 SBOM / SLSA / provenance。
 - 不写入 Session transcript、input queue、pending、Plan、Goal，也不持久化到磁盘 / Profile / `.env`。
 - 不自动 `session.prompt`。draft 进入对话的唯一途径是用户之后的常规提交。
-- T4 及以后的真实推理接入：若 T0 闸门 (a)–(d) 任一阻塞则停止，禁止隐藏 Session 或“发了再藏”。
+- 不注册、替换或写入官方 `tokenUsage`。Auxiliary 用量由独立插件通过官方 `storageDomain` 记录；它不伪装成官方同名 projection，也不污染 Session。
+- 不硬编码领域问卷、固定问题、固定选项或固定 preview；生产问题、选项和预览均来自模型输出。
 
 ## 接口词汇
 
-Typert Remote 命名空间 `clarify`：`start` / `answer` / `cancel` / `fetchDraft`。
+Typert Remote 命名空间 `clarify`：`start` / `answer` / `accept` / `refine` / `cancel` / `fetchDraft`。
 
 消费者路径是 stock Connection 信封：
 
@@ -45,7 +44,8 @@ Content-Type: application/json
 
 ```sh
 pnpm pack
-dsh plugin --profile web add ./dsh-plugin-clarify-0.1.0.tgz
+dsh plugin --profile web add ./dsh-plugin-auxiliary-runtime-0.1.0.tgz
+dsh plugin --profile web add ./dsh-plugin-clarify-0.2.0.tgz
 dsh --profile web
 ```
 
@@ -53,16 +53,18 @@ dsh --profile web
 
 ```sh
 dsh plugin --profile web remove dsh-plugin-clarify
-dsh plugin --profile web add ./dsh-plugin-clarify-0.1.0.tgz
+dsh plugin --profile web add ./dsh-plugin-clarify-0.2.0.tgz
 ```
 
-T1–T3 骨架在 Host 上注册（这不是 T1/T0 全绿）：
+生产组合在 Host 上注册：
 
-- Typert Remote `clarify/{start,answer,cancel,fetchDraft}`，经 `ctx.typert.register` + `typertGateway`
+- Typert Remote `clarify/{start,answer,accept,refine,cancel,fetchDraft}`，经 `ctx.typert.register` + `typertGateway`
 - `GET /clarify`：可操作的 Host DIY 页，只走同一 `/api` Remote，不自动发送
 - 进程状态仅在 Host 内存 TTL 表中，默认 15 分钟无交互后 `staleReason=ttl-expired`
+- `auxiliaryRuntime.run({ prepareRequest })`：在官方 `llm.prepareCall` 得到物化模型配置与 context window 后，同一次原子回调构造 prompt 与 reservation；流式输出不进入 Session transcript
+- 空白新 Session 没有 `requestHeader()` 时，只在“无历史且无 requestContext”条件下读取公开 `agentDefaultModel.currentSelection()`；有历史却缺 header 时拒绝猜测路由，已有 header 始终优先
 
-Clarify standalone T1 只陈述 stock `add` / boot / `remove` / 再 `add` lifecycle。任务书 `/doctor` 零错误零警告是 **final cross-project acceptance**：由 Task B 用 SeekTTY 既有本地 `/doctor`（不是 dsh CLI，也不是 Host `GET /doctor`）在安装 Clarify 后验证。本仓库不发明 doctor。在联调证据存在前，只能写 standalone lifecycle 通过、cross-project doctor 待联调，不能说 T1 完全通过。T0 (b)/(d) 仍阻塞时 T4+ 停止。`pnpm t3` 只是进程内 Remote 冒烟，不是官方 Host T3。
+Cordis 注入使安装顺序不决定激活结果：Clarify 等待 `auxiliaryRuntime`，Auxiliary Runtime 等待官方 `storageDomain`；依赖撤回时相关子上下文自动停用，恢复后以新实例重新激活。精确 rc.8 的 SeekTTY `/doctor`、隔离安装/卸载/重装和真实 PTY 联合验收已通过；每次 Release 仍须在合并后的提交上重跑并执行发布后再安装。`pnpm t3` 只是进程内 Remote 冒烟，不替代真实 Host/TUI 验收。
 
 T0 探针在 `CLARIFY_PROBE=1` 或隔离 `DSH_HOME/.clarify-probe` 标记存在时提供 `GET /clarify/probe`。探针可为隔离合同创建测试夹具 Session；生产插件与 DIY 不得 `session.create`。不要在生产 Profile 打开该开关。官方 dsh 由 T0/T1 脚本用 npm 装到 `.probe-work/`（gitignored），不得进入本包 `package.json` / 仓库 lockfile importer。
 
@@ -78,7 +80,7 @@ pnpm t0:matrix    # 隔离 DSH_HOME；pinned rc.6/rc.7/rc.8 + 动态 latest/next
 pnpm t1:matrix
 ```
 
-CI `verify` 跑 `test` / `build` / `pack:check` / `t3`（进程内）。CI `contract-matrix` 跑隔离 Host 上的 T0/T1；子进程退出 0 不等于闸门可行。T1 standalone 退出 0 只表示 lifecycle 通过；stock dsh 不存在 doctor 不得使 CI 永久红。Release 前的 `/doctor` 联调门禁在 SeekTTY 轨道执行。不跑 `npm publish`，不引入 SBOM/SLSA。
+CI `verify` 跑 `test` / 干净 `build` / `pack:check` / `t3`（进程内）。`pack:check` 会拒绝已删除的直接 LLM/acceptance 绕行产物残留。Release 前的官方 Host、真实 PTY 与 `/doctor` 联调门禁在三项目联合轨道执行。不跑 `npm publish`，不引入 SBOM/SLSA。
 
 ## 许可
 

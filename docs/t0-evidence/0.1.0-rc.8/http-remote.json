@@ -4,6 +4,6 @@
   "headers": {},
   "json": true,
   "ok": false,
-  "errorCode": "internal",
-  "textPreview": "{\"type\":\"server-response\",\"rpcId\":\"50c73f03-7004-47e4-b006-61ca028d0612\",\"result\":{\"ok\":false,\"error\":{\"code\":\"internal\",\"message\":\"session missing-session is not available through the public sessions service\",\"details\":{}}}}"
+  "errorCode": "PROCESS_NOT_FOUND",
+  "textPreview": "{\"type\":\"server-response\",\"rpcId\":\"<ephemeral-uuid>\",\"result\":{\"ok\":true,\"value\":{\"protocol\":\"clarify.wire/1\",\"ok\":false,\"error\":{\"code\":\"PROCESS_NOT_FOUND\",\"message\":\"session missing-session is not available through the public sessions service\",\"category\":\"protocol\"}}}}"
 }

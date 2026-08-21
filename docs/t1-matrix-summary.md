@@ -8,8 +8,8 @@ pinned release lanes: `0.1.0-rc.6`, `0.1.0-rc.7`, `0.1.0-rc.8`
 
 | 请求元包 | CLI | base | 混合树 | standalone lifecycle | cross-project doctor | T1 完全通过 | 退出码 | 分版本报告 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0.1.0-rc.6 | 0.1.0-rc.6 | 0.1.0-rc.7 | true | 通过 | 待联调 | 未完成 | 0 | docs/t0-evidence/0.1.0-rc.6/t1-report.md |
-| 0.1.0-rc.7 | 0.1.0-rc.7 | 0.1.0-rc.7 | false | 通过 | 待联调 | 未完成 | 0 | docs/t0-evidence/0.1.0-rc.7/t1-report.md |
+| 0.1.0-rc.6 | 0.1.0-rc.6 | 0.1.0-rc.8 | true | 通过 | 待联调 | 未完成 | 0 | docs/t0-evidence/0.1.0-rc.6/t1-report.md |
+| 0.1.0-rc.7 | 0.1.0-rc.7 | 0.1.0-rc.8 | true | 通过 | 待联调 | 未完成 | 0 | docs/t0-evidence/0.1.0-rc.7/t1-report.md |
 | 0.1.0-rc.8 | 0.1.0-rc.8 | 0.1.0-rc.8 | false | 通过 | 待联调 | 未完成 | 0 | docs/t0-evidence/0.1.0-rc.8/t1-report.md |
 
 T1 standalone 退出 0：3/3。T1 完全通过：0/3。cross-project doctor 待联调不得把 standalone 合同打红。

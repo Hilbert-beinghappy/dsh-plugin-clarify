@@ -17,7 +17,7 @@
 | --- | --- | --- |
 | (a) off-transcript, no-tools 补全 | 可行 | 直接 ctx.llm.stream（探针 adapter、no-tools、未 markAgentLoopRequest）成功，且 session 事件/deriveMessages 计数未增加。未证明走 Session 现网 provider 路由 |
 | (b) 只读上下文及修订标识 | 阻塞 | requestHeader() is undefined on a fresh session; public API has no context revision id besides the forbidden session.seq fallback |
-| (c) Surface 可发现 Remote | 可行 | typert.local 已 claim 四端点，且 Gateway 或 /api 信封以 Clarify 业务错误/结果命中 receiver |
+| (c) Surface 可发现 Remote | 可行 | typert.local 已 claim 六端点，且 Gateway 或 /api 信封以 Clarify 业务错误/结果命中 receiver |
 | (d) usage / limits / cancel 通道 | 阻塞 | 未用已存在的用户 Session 证明 Harness usage 归属；禁止用探针新建 Session、假 assistant/message、私有计量器或未证明的 Session 日志写入来伪装 (d) |
 
 ## P-usage
@@ -27,6 +27,12 @@
 - 无 Agent-loop 标记：`true`
 - 事件条数变化：`0`
 - deriveMessages 条数变化：`0`
+- Session 来源：`created-by-probe`
+- TokenMeter totalTokens：`0 -> 0`
+- tokenUsage 投影：`{"uncachedInputTokens":0,"outputTokens":0,"cacheReadTokens":0,"cacheWriteTokens":0} -> {"uncachedInputTokens":0,"outputTokens":0,"cacheReadTokens":0,"cacheWriteTokens":0}`
+- 本次探针期望增量：`total=4 / {"uncachedInputTokens":3,"outputTokens":1,"cacheReadTokens":0,"cacheWriteTokens":0}`
+- limits 通道：`unproven` — this probe did not observe a public Host limits channel rejecting the auxiliary stream
+- cancel 通道：`unproven` — this probe did not observe a public Host cancellation channel aborting the auxiliary stream
 - stream 错误：`none`
 - adapter 错误：`none`
 
@@ -44,14 +50,14 @@
 - Host DIY `GET /clarify`：HTTP 200；DIY 签名 匹配
 - `GET /clarify/probe`：HTTP 200；合同 JSON 是
 - stock `POST /api/clarify/start`：HTTP 200；Remote 信封 已观察到
-- Host T3（官方 `/api` 信封实跑）：通过 — GET /clarify static HTML is not an interactive T3 pass. Session source=t0-probe-test-fixture, createdByHarness=true, productionPluginCreated=false. Isolation test fixture only; production plugin and DIY must not create Session.
+- Host T3（官方 `/api` 信封实跑）：阻塞 — INFERENCE_UNAVAILABLE: session requestHeader() is missing model route provider; error: start returned no question; error: answer-1 returned no question; error: complete was not reached
 - Host T3 Session：source=`t0-probe-test-fixture`；createdByHarness=`true`；productionPluginCreated=`false`。仅隔离测试夹具；插件与 DIY 仍禁止 `session.create`。
 - DIY 静态签名不等于交互通过：`签名匹配`；交互 T7 未声称通过
 - `webServer.register`：`true`
 - `ctx.typert.register`：`true`
-- `typert.local` claim 四端点：`true`；列出 `clarify/start, clarify/answer, clarify/cancel, clarify/fetchDraft`
+- `typert.local` claim 六端点：`true`；列出 `clarify/accept, clarify/answer, clarify/cancel, clarify/fetchDraft, clarify/refine, clarify/start`
 - Remote 注册：`registered`
-- Gateway 到达：`observed` / `4`；仅 business hit 算抵达
+- Gateway 到达：`observed` / `6`；仅 business hit 算抵达
 - `typertGateway.invoke`：`true`
 - `ctx.remote.$mount`：`false`（Client face，Host DIY 不依赖它）
 - stock Web 插件 UI 挂载点：this probe does not claim a ConversationNode or settings panel; Host DIY GET /clarify is the documented fallback and must use the same /api Remote
@@ -67,4 +73,3 @@
 - OK `init dump-config`
 - OK `plugin add tgz`
 - OK `dump-config after add`
-- OK `dsh --profile web --help`

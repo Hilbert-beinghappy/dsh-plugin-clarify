@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-clarify",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Off-transcript clarification Host plugin for DeepSeek Harness",
   "license": "MIT",
   "type": "module",
@@ -29,7 +29,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node scripts/build.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "pack": "pnpm pack",
