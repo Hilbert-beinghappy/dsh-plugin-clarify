@@ -23,6 +23,12 @@ describe('fingerprints', () => {
     expect(a).toMatch(/^sha256:/)
   })
 
+  it('changes modelRouteId when generation sampling changes', () => {
+    const base = modelRouteIdFromConfig({ provider: 'deepseek', model: 'chat', temperature: 0.2, stop: ['END'] })
+    expect(modelRouteIdFromConfig({ provider: 'deepseek', model: 'chat', temperature: 0.8, stop: ['END'] })).not.toBe(base)
+    expect(modelRouteIdFromConfig({ provider: 'deepseek', model: 'chat', temperature: 0.2, stop: ['STOP'] })).not.toBe(base)
+  })
+
   it('changes contextVersion when system or tools change without new messages', () => {
     const messages = [{ role: 'user', content: 'hello' }]
     const base = contextVersionFromModelVisible({

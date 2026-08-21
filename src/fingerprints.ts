@@ -4,6 +4,9 @@ export interface ModelRouteConfig {
   provider?: string
   model?: string
   reasoningEffort?: string
+  temperature?: number
+  maxTokens?: number
+  stop?: readonly string[]
 }
 
 export interface ModelVisibleInput {
@@ -17,6 +20,9 @@ export function modelRouteIdFromConfig(config: ModelRouteConfig): string {
     provider: config.provider ?? '',
     model: config.model ?? '',
     reasoningEffort: config.reasoningEffort ?? '',
+    temperature: config.temperature ?? null,
+    maxTokens: config.maxTokens ?? null,
+    stop: config.stop ?? [],
   })
 }
 

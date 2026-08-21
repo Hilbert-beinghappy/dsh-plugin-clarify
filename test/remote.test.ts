@@ -6,7 +6,8 @@ import { clarifyClientRequest } from '../src/remote-client.ts'
 import { clarifyDiyHtml } from '../src/host-diy.ts'
 import { apply, TYPERT_READY_INJECT } from '../src/index.ts'
 import { clarifyTypertContribution, createClarifyRemote, registerClarifyRemote } from '../src/remote.ts'
-import type { HostBinding } from '../src/types.ts'
+import { StubInferenceEngine } from './fixtures/stub-inference.mjs'
+import { unwrapClarifyWire, type HostBinding } from '../src/types.ts'
 
 function service(): ClarifyService {
   const binding: HostBinding = {
@@ -14,7 +15,16 @@ function service(): ClarifyService {
     contextVersion: 'ctx-remote',
     modelRouteId: 'route-remote',
   }
-  return new ClarifyService({ resolveBinding: () => binding })
+  return new ClarifyService({
+    resolveBinding: () => binding,
+    inference: new StubInferenceEngine(),
+  })
+}
+
+function optionId(question: { options: Array<{ optionId: string; text: string }> }, text: string): string {
+  const found = question.options.find((option) => option.text === text)
+  if (!found) throw new Error(`missing option ${text}`)
+  return found.optionId
 }
 
 describe('Typert Remote registration', () => {
@@ -23,12 +33,12 @@ describe('Typert Remote registration', () => {
     expect(remote.typertRemote.namespace).toBe('clarify')
     expect(remote.typertRemote.serviceKey).toBe('clarify')
     expect(remote.typertRemote.service).toBe(remote)
-    const started = await remote.start('session-remote', 'seed')
+    const started = unwrapClarifyWire(await remote.start('session-remote', 'seed'))
     expect(started.status).toBe('running')
     expect(started).not.toHaveProperty('draft')
   })
 
-  it('registers a host contribution with the four endpoints', () => {
+  it('registers a host contribution with the stock endpoints', () => {
     const contribution = clarifyTypertContribution()
     expect(contribution.face).toBe('host')
     expect(contribution).not.toHaveProperty('descriptors')
@@ -36,6 +46,8 @@ describe('Typert Remote registration', () => {
     expect(invocations.map((item) => `${item.namespace}/${item.method}`)).toEqual([
       'clarify/start',
       'clarify/answer',
+      'clarify/accept',
+      'clarify/refine',
       'clarify/cancel',
       'clarify/fetchDraft',
     ])
@@ -168,26 +180,47 @@ describe('Typert Remote registration', () => {
 describe('Remote answer omit keeps strict XOR', () => {
   it('omits empty customText so an option-only positional answer is valid', async () => {
     const remote = createClarifyRemote(service())
-    const started = await remote.start('session-remote', 'seed')
-    const next = await remote.answer(started.processId, started.question!.questionId, ['o-feature'], '')
+    const started = unwrapClarifyWire(await remote.start('session-remote', 'seed'))
+    const next = unwrapClarifyWire(await remote.answer(
+      started.processId,
+      started.question!.questionId,
+      started.previewVersion!,
+      [optionId(started.question!, 'Add a feature')],
+      '',
+    ))
     expect(next.status).toBe('running')
-    expect(next.question?.questionId).toBe('q-constraints')
+    expect(next.question?.text).toContain('constraints')
   })
 
   it('omits empty selectedOptionIds so a custom-only positional answer is valid', async () => {
     const remote = createClarifyRemote(service())
-    const started = await remote.start('session-remote', 'seed')
-    const next = await remote.answer(started.processId, started.question!.questionId, [], 'ship a clarify plugin')
+    const started = unwrapClarifyWire(await remote.start('session-remote', 'seed'))
+    const next = unwrapClarifyWire(await remote.answer(
+      started.processId,
+      started.question!.questionId,
+      started.previewVersion!,
+      [],
+      'ship a clarify plugin',
+    ))
     expect(next.status).toBe('running')
-    expect(next.question?.questionId).toBe('q-constraints')
+    expect(next.question?.text).toContain('constraints')
   })
 
   it('still rejects when both sides of the XOR are non-empty', async () => {
     const remote = createClarifyRemote(service())
-    const started = await remote.start('session-remote', 'seed')
+    const started = unwrapClarifyWire(await remote.start('session-remote', 'seed'))
     await expect(
-      remote.answer(started.processId, started.question!.questionId, ['o-feature'], 'also custom'),
-    ).rejects.toMatchObject({ code: 'INVALID_ANSWER' })
+      remote.answer(
+        started.processId,
+        started.question!.questionId,
+        started.previewVersion!,
+        [optionId(started.question!, 'Add a feature')],
+        'also custom',
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_ANSWER', category: 'invalid-request' },
+    })
   })
 })
 
@@ -206,21 +239,25 @@ describe('official consumer envelope', () => {
     expect(clarifyClientRequest('answer', {
       processId: 'p',
       questionId: 'q',
+      previewVersion: 'v1',
       selectedOptionIds: ['o-feature'],
       customText: '',
     }).payload.args).toEqual({
       processId: 'p',
       questionId: 'q',
+      previewVersion: 'v1',
       selectedOptionIds: ['o-feature'],
     })
     expect(clarifyClientRequest('answer', {
       processId: 'p',
       questionId: 'q',
+      previewVersion: 'v1',
       selectedOptionIds: [],
       customText: 'hello',
     }).payload.args).toEqual({
       processId: 'p',
       questionId: 'q',
+      previewVersion: 'v1',
       customText: 'hello',
     })
   })
@@ -234,6 +271,13 @@ describe('Host DIY surface', () => {
     expect(html).toContain('clarify/start')
     expect(html).toContain('Fetch draft')
     expect(html).toContain('Copy draft')
+    expect(html).toContain('Current draft preview')
+    expect(html).toContain('Changes this round')
+    expect(html).toContain("typeof echo.draftPreview === 'string'")
+    expect(html).toContain('clarify.wire/1')
+    expect(html).toContain("error.category !== 'conflict'")
+    expect(html).toContain('Refine preview')
+    expect(html).toContain('item.textContent = change')
     expect(html).not.toContain('/clarify/rpc')
     expect(html).not.toContain('session.prompt')
     expect(html).not.toContain('session.create')

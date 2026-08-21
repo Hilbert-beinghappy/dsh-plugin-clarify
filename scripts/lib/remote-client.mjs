@@ -1,5 +1,6 @@
 export const CLARIFY_NAMESPACE = 'clarify'
-export const CLARIFY_METHODS = ['start', 'answer', 'cancel', 'fetchDraft']
+export const CLARIFY_METHODS = ['start', 'answer', 'accept', 'refine', 'cancel', 'fetchDraft']
+export const CLARIFY_WIRE_PROTOCOL = 'clarify.wire/1'
 
 export function clientRequest(method, payload, rpcId = crypto.randomUUID()) {
   return {
@@ -38,7 +39,32 @@ export async function postApi(origin, method, payload) {
 }
 
 export async function callClarify(origin, method, args) {
-  return postApi(origin, `${CLARIFY_NAMESPACE}/${method}`, { args: omitUndefined(args) })
+  return unwrapClarifyWire(await postApi(origin, `${CLARIFY_NAMESPACE}/${method}`, { args: omitUndefined(args) }))
+}
+
+export function unwrapClarifyWire(posted) {
+  if (!posted?.ok) return posted
+  const inner = posted.value
+  if (!inner || inner.protocol !== CLARIFY_WIRE_PROTOCOL || typeof inner.ok !== 'boolean') {
+    return {
+      ...posted,
+      ok: false,
+      value: undefined,
+      error: { code: 'INVALID_ANSWER', message: 'Clarify response is not clarify.wire/1', category: 'protocol' },
+      wireCompatible: false,
+    }
+  }
+  if (inner.ok === true) {
+    return { ...posted, ok: true, value: inner.value, error: undefined, wireCompatible: true }
+  }
+  return {
+    ...posted,
+    ok: false,
+    value: undefined,
+    error: inner.error,
+    wireCompatible: true,
+    outerOk: true,
+  }
 }
 
 export async function createTestFixtureSession(origin) {
@@ -195,7 +221,7 @@ function omitUndefined(args) {
   const out = {}
   for (const [key, value] of Object.entries(args ?? {})) {
     if (value === undefined) continue
-    if (typeof value === 'string' && value.length === 0 && key !== 'sessionId' && key !== 'processId' && key !== 'questionId') {
+    if (typeof value === 'string' && value.length === 0 && key !== 'sessionId' && key !== 'processId' && key !== 'questionId' && key !== 'previewVersion') {
       continue
     }
     if (key === 'selectedOptionIds' && Array.isArray(value) && value.length === 0) continue

@@ -1,6 +1,6 @@
 # dsh-plugin-clarify
 
-独立的 DeepSeek Harness **Host 插件**（npm 包名 `dsh-plugin-clarify`，版本 `0.1.0`）。它提供绑定当前 Session 与 context version 的临时澄清式推理进程：结构化提问，最终产出一段**待用户自行发送**的草稿文本。
+独立的 DeepSeek Harness **Host 插件**（npm 包名 `dsh-plugin-clarify`，当前未发布版本 `0.2.0`）。它提供绑定当前 Session 与 context version 的临时澄清式推理进程：结构化提问，最终产出一段**待用户自行发送**的草稿文本。
 
 SeekTTY 只是可选消费者。生产源码、包清单和依赖不引用 `seektty`，也不含 `workspace:` 依赖；文档仅说明跨项目验收边界。
 
@@ -45,7 +45,7 @@ Content-Type: application/json
 
 ```sh
 pnpm pack
-dsh plugin --profile web add ./dsh-plugin-clarify-0.1.0.tgz
+dsh plugin --profile web add ./dsh-plugin-clarify-0.2.0.tgz
 dsh --profile web
 ```
 
@@ -53,7 +53,7 @@ dsh --profile web
 
 ```sh
 dsh plugin --profile web remove dsh-plugin-clarify
-dsh plugin --profile web add ./dsh-plugin-clarify-0.1.0.tgz
+dsh plugin --profile web add ./dsh-plugin-clarify-0.2.0.tgz
 ```
 
 T1–T3 骨架在 Host 上注册（这不是 T1/T0 全绿）：

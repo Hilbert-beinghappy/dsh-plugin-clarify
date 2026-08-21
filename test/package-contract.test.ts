@@ -13,13 +13,14 @@ describe('published package contract', () => {
     devDependencies?: Record<string, string>
     peerDependencies?: Record<string, string>
     optionalDependencies?: Record<string, string>
+    exports?: Record<string, unknown>
     files?: string[]
     dsh?: { bundle?: { patch?: string } }
   }
 
-  it('is version 0.1.0 named dsh-plugin-clarify', () => {
+  it('is the unreleased 0.2.0 package named dsh-plugin-clarify', () => {
     expect(pkg.name).toBe('dsh-plugin-clarify')
-    expect(pkg.version).toBe('0.1.0')
+    expect(pkg.version).toBe('0.2.0')
   })
 
   it('declares official dsh.bundle.patch so plugin add can reconcile the layer', () => {
@@ -31,6 +32,17 @@ describe('published package contract', () => {
     expect(patch).not.toMatch(/workspace:/)
   })
 
+  it('publishes acceptance as a separate subpath without changing the default entrypoint', () => {
+    expect(pkg.exports?.['.']).toEqual({
+      types: './lib/index.d.ts',
+      default: './lib/index.js',
+    })
+    expect(pkg.exports?.['./acceptance']).toEqual({
+      types: './lib/acceptance.d.ts',
+      default: './lib/acceptance.js',
+    })
+  })
+
   it('has a strict files allowlist', () => {
     expect(pkg.files).toEqual([
       'lib/**/*.js',
@@ -39,6 +51,14 @@ describe('published package contract', () => {
       'LICENSE',
       'README.md',
     ])
+  })
+
+  it('derives probe tarball names from the package manifest version', () => {
+    for (const script of ['scripts/t0-run.mjs', 'scripts/t1-lifecycle.mjs']) {
+      const source = readFileSync(join(root, script), 'utf8')
+      expect(source).toContain('packageManifest.version')
+      expect(source).not.toMatch(/dsh-plugin-clarify-\d+\.\d+\.\d+\.tgz/)
+    }
   })
 
   it('lockfile importers stay the package root and never mention probe-work', () => {
@@ -77,5 +97,44 @@ describe('source persistence guard', () => {
     expect(joined).not.toMatch(/writeFileSync/)
     expect(joined).not.toMatch(/SeekTTY/i)
     expect(joined).not.toMatch(/\/clarify\/rpc/)
+  })
+
+  it('ships no deterministic semantic questions or stub inference API', () => {
+    const srcDir = join(root, 'src')
+    const source = readdirSync(srcDir)
+      .filter((name) => name.endsWith('.ts'))
+      .map((name) => readFileSync(join(srcDir, name), 'utf8'))
+      .join('\n')
+    expect(source).not.toMatch(/StubInferenceEngine|STUB_ASKS|STUB_QUESTIONS|stub-inference/)
+    expect(source).not.toContain('What is the main thing you want to accomplish?')
+    expect(source).not.toContain('Which constraints should the draft respect?')
+  })
+
+  it('prepared inference cannot write Session usage, transcript, or Agent-loop metadata', () => {
+    const source = readFileSync(join(root, 'src/prepared-call-inference.ts'), 'utf8')
+    expect(source).not.toMatch(/\btokenMeter\b/)
+    expect(source).not.toMatch(/\.append\s*\(/)
+    expect(source).not.toMatch(/session\.prompt\s*\(/)
+    expect(source).not.toMatch(/\bmarkAgentLoopRequest\b/)
+    expect(source).not.toMatch(/\bpurpose\s*:/)
+  })
+
+  it('keeps acceptance wiring out of the stock main entrypoint and public barrel', () => {
+    const index = readFileSync(join(root, 'src/index.ts'), 'utf8')
+    const publicApi = readFileSync(join(root, 'src/public-api.ts'), 'utf8')
+    expect(index).not.toMatch(/prepared-call-inference/)
+    expect(index).not.toMatch(/from ['"]\.\/acceptance\.ts['"]/)
+    expect(index).not.toMatch(/prepareCall/)
+    expect(index).not.toMatch(/ctx\.llm/)
+    expect(publicApi).not.toMatch(/acceptance/)
+  })
+
+  it('keeps the acceptance composer free of Session writes and Agent-loop metadata', () => {
+    const source = readFileSync(join(root, 'src/acceptance.ts'), 'utf8')
+    expect(source).not.toMatch(/\btokenMeter\b/)
+    expect(source).not.toMatch(/\.append\s*\(/)
+    expect(source).not.toMatch(/session\.prompt\s*\(/)
+    expect(source).not.toMatch(/\bmarkAgentLoopRequest\b/)
+    expect(source).not.toMatch(/\bpurpose\s*:/)
   })
 })

@@ -43,7 +43,7 @@ function omitUndefined(args: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(args)) {
     if (value === undefined) continue
-    if (typeof value === 'string' && value.length === 0 && key !== 'sessionId' && key !== 'processId' && key !== 'questionId') {
+    if (typeof value === 'string' && value.length === 0 && key !== 'sessionId' && key !== 'processId' && key !== 'questionId' && key !== 'previewVersion') {
       continue
     }
     if (key === 'selectedOptionIds' && Array.isArray(value) && value.length === 0) continue

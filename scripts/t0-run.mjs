@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
@@ -65,7 +65,11 @@ const dshHelp = capture('dsh --help', () => helpText(dshBin, env))
 execFileSync('pnpm', ['run', 'build'], { cwd: root, stdio: 'inherit' })
 const packDir = mkdtempSync(join(tmpdir(), 'clarify-t0-pack-'))
 execFileSync('pnpm', ['pack', '--pack-destination', packDir], { cwd: root, stdio: 'inherit' })
-const tgz = join(packDir, 'dsh-plugin-clarify-0.1.0.tgz')
+const packageManifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+if (packageManifest.name !== 'dsh-plugin-clarify' || typeof packageManifest.version !== 'string') {
+  throw new Error('package.json must identify a versioned dsh-plugin-clarify package')
+}
+const tgz = join(packDir, `${packageManifest.name}-${packageManifest.version}.tgz`)
 
 capture('init dump-config', () => runDsh(dshBin, ['--profile', 'web', '--dump-config'], env))
 const add = capture('plugin add tgz', () => runDsh(dshBin, ['plugin', '--profile', 'web', 'add', tgz], env))

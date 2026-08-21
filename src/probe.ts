@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { peekHost } from './compat.ts'
+import { CLARIFY_REMOTE_METHODS, CLARIFY_REMOTE_NAMESPACE, peekHost } from './compat.ts'
 import { contextVersionFromModelVisible, modelRouteIdFromConfig } from './fingerprints.ts'
 import { lastClarifyRemoteRegistration } from './remote.ts'
 
@@ -294,10 +294,11 @@ async function runWebProbe(ctx: ProbeContext): Promise<Record<string, unknown>> 
       graphError = errorMessage(error)
     }
     const listed = listTypertEndpoints(typert)
-    const claimed = ['clarify/start', 'clarify/answer', 'clarify/cancel', 'clarify/fetchDraft']
+    const expectedEndpoints = CLARIFY_REMOTE_METHODS.map((method) => `${CLARIFY_REMOTE_NAMESPACE}/${method}`)
+    const claimed = expectedEndpoints
       .every((endpoint) => listed.includes(endpoint))
     const localExact = Object.fromEntries(
-      ['clarify/start', 'clarify/answer', 'clarify/cancel', 'clarify/fetchDraft'].map((endpoint) => {
+      expectedEndpoints.map((endpoint) => {
         try {
           return [endpoint, typert?.local?.get?.(endpoint) !== undefined]
         } catch {
@@ -365,7 +366,7 @@ async function probeClarifyConsumer(gateway: ProbeContext['typertGateway']): Pro
   if (typeof gateway?.invoke !== 'function') {
     return { status: 'blocked', reason: 'ctx.typertGateway.invoke is not a public function on this Host' }
   }
-  const methods = ['start', 'answer', 'cancel', 'fetchDraft'] as const
+  const methods = CLARIFY_REMOTE_METHODS
   const endpoints: Record<string, unknown> = {}
   let hits = 0
   for (const method of methods) {
@@ -373,7 +374,7 @@ async function probeClarifyConsumer(gateway: ProbeContext['typertGateway']): Pro
       ? { sessionId: 'clarify-probe-missing-session' }
       : { processId: 'clarify-probe-missing-process' }
     try {
-      const result = await gateway.invoke({ namespace: 'clarify', method, args })
+      const result = await gateway.invoke({ namespace: CLARIFY_REMOTE_NAMESPACE, method, args })
       const arrival = classifyArrival({
         value: result,
         processId: result && typeof result === 'object' ? (result as { processId?: unknown }).processId : undefined,

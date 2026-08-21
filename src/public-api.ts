@@ -1,23 +1,62 @@
 export { ClarifyService } from './clarify-service.ts'
-export { ClarifyError, DEFAULT_TTL_MS } from './types.ts'
+export {
+  ClarifyError,
+  DEFAULT_TTL_MS,
+  UnauthorizedInferenceEngine,
+  CLARIFY_WIRE_PROTOCOL,
+  clarifyWireOk,
+  clarifyWireErr,
+  unwrapClarifyWire,
+  isCarrierCancellation,
+  asClarifyWireResult,
+} from './types.ts'
 export type {
+  AcceptRequest,
+  AcceptResponse,
+  AcceptedDecision,
   AnswerRequest,
   AnswerResponse,
   CancelRequest,
   CancelResponse,
+  ClarifyFailureCategory,
   ClarifyQuestion,
+  ClarifyWireError,
+  ClarifyWireResult,
   FetchDraftRequest,
   FetchDraftResponse,
   HostBinding,
+  InferenceCallConfig,
+  InferenceInput,
+  InferenceSnapshot,
+  ModelInference,
+  PriorPublishedDraft,
   ProcessEcho,
   ProcessStatus,
+  RefineRequest,
+  RefineResponse,
   StaleReason,
   StartRequest,
   StartResponse,
 } from './types.ts'
 export { dispatchClarifyRpc, dispatchClarifyRpcBody, CLARIFY_RPC_METHODS } from './rpc.ts'
 export { modelRouteIdFromConfig, contextVersionFromModelVisible } from './fingerprints.ts'
-export { STUB_QUESTIONS } from './stub-inference.ts'
+export { captureInferenceSnapshot, snapshotHashesMatch } from './inference-snapshot.ts'
+export { buildClarifyOneShotRequest, CLARIFY_CONTROL_SYSTEM, PROMPT_SAFETY_TOKENS } from './inference-prompt.ts'
+export { callConfigEquals, MAX_MODEL_OUTPUT_CHARS, PreparedCallInferenceEngine } from './prepared-call-inference.ts'
+export type {
+  PreparedCallInferenceOptions,
+  PreparedCallLike,
+  PreparedCallLlmLike,
+  PreparedGenerateOptions,
+  PreparedStreamChunk,
+} from './prepared-call-inference.ts'
+export {
+  parseModelInferenceJson,
+  assertModelInference,
+  decideSameRouteRepair,
+  withBoundedSameRouteRepair,
+  isMaterialPreviewChange,
+} from './model-protocol.ts'
 export { CLARIFY_HTML_PATH, registerClarifyHostDiy, clarifyDiyHtml } from './host-diy.ts'
 export { resolveHostBinding } from './host-binding.ts'
 export {

@@ -19,6 +19,18 @@ describe('public evidence sanitizer', () => {
     expect(sanitizeText('DSH_HOME=/Volumes/huawei/secret-home')).toBe('DSH_HOME=<redacted>')
   })
 
+  it('normalizes volatile lifecycle evidence', () => {
+    const cleaned = sanitizeText([
+      'dsh web: http://127.0.0.1:51138',
+      'Done in 382ms using pnpm v11.19.0',
+      'Lockfile passes supply-chain policies (verified 2s ago)',
+    ].join('\n'))
+    expect(cleaned).toContain('http://127.0.0.1:<ephemeral>')
+    expect(cleaned).toContain('Done in <ephemeral> using pnpm v11.19.0')
+    expect(cleaned).toContain('verified <ephemeral> ago')
+    expect(cleaned).not.toMatch(/51138|382ms|verified 2s/)
+  })
+
   it('publishes only loopback origin shape', () => {
     expect(publicOrigin('http://127.0.0.1:60358')).toBe('http://127.0.0.1:<ephemeral>')
     expect(publicOrigin('https://example.internal')).toBe('<redacted-origin>')

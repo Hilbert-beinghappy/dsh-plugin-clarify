@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-clarify",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Off-transcript clarification Host plugin for DeepSeek Harness",
   "license": "MIT",
   "type": "module",
@@ -10,6 +10,10 @@
     ".": {
       "types": "./lib/index.d.ts",
       "default": "./lib/index.js"
+    },
+    "./acceptance": {
+      "types": "./lib/acceptance.d.ts",
+      "default": "./lib/acceptance.js"
     },
     "./package.json": "./package.json"
   },

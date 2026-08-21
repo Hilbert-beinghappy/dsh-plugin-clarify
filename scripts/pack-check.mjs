@@ -9,7 +9,7 @@ const root = fileURLToPath(new URL('..', import.meta.url))
 const dir = mkdtempSync(join(tmpdir(), 'clarify-pack-'))
 try {
   execFileSync('pnpm', ['pack', '--pack-destination', dir], { cwd: root, stdio: 'inherit' })
-  const tgz = join(dir, 'dsh-plugin-clarify-0.1.0.tgz')
+  const tgz = join(dir, 'dsh-plugin-clarify-0.2.0.tgz')
   const listing = execFileSync('tar', ['-tzf', tgz], { encoding: 'utf8' })
   const entries = listing.trim().split('\n').filter(Boolean)
   const allowed = [
@@ -31,8 +31,8 @@ try {
   if (pkgJson.includes('workspace:') || pkgJson.toLowerCase().includes('seektty')) {
     throw new Error('packed package.json contains seektty or workspace:')
   }
-  if (!pkgJson.includes('"version": "0.1.0"')) {
-    throw new Error('packed package.json is not 0.1.0')
+  if (!pkgJson.includes('"version": "0.2.0"')) {
+    throw new Error('packed package.json is not 0.2.0')
   }
   console.log(`pack-check ok (${entries.length} entries)`)
 } finally {

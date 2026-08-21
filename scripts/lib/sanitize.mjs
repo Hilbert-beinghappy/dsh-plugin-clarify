@@ -1,5 +1,8 @@
 const PRIVATE_PATH = /(?:\/(?:Users|home|var\/folders|private\/var\/folders|Volumes)\/[^\s"'\\]+|(?:file:\/{1,3}(?:\/Users|\/home|\/var\/folders|\/Volumes)[^\s"'\\]+)|[A-Za-z]:\\Users\\[^\s"'\\]+)/g
 const STORE_PATH = /(?:Content-addressable store is at:|Virtual store is at:)[^\n]*/g
+const LOOPBACK_ORIGIN = /https?:\/\/(?:127\.0\.0\.1|localhost):\d+/g
+const COMMAND_DURATION = /\bDone in \d+(?:\.\d+)?(?:ms|s)\b/g
+const CACHE_AGE = /\bverified \d+(?:\.\d+)?(?:ms|s) ago\b/g
 
 export function sanitize(value) {
   if (typeof value === 'string') return sanitizeText(value)
@@ -20,6 +23,9 @@ export function sanitizeText(text) {
     .replace(STORE_PATH, '<redacted-store>')
     .replace(PRIVATE_PATH, '<redacted-path>')
     .replace(/file:<redacted-path>/g, 'file:<redacted-path>')
+    .replace(LOOPBACK_ORIGIN, (origin) => origin.replace(/:\d+$/, ':<ephemeral>'))
+    .replace(COMMAND_DURATION, 'Done in <ephemeral>')
+    .replace(CACHE_AGE, 'verified <ephemeral> ago')
 }
 
 export function publicOrigin(origin) {

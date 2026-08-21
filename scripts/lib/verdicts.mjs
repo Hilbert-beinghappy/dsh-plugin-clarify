@@ -34,7 +34,14 @@ export function verdictB(header) {
 }
 
 export const CLARIFY_ENDPOINTS = ['clarify/start', 'clarify/answer', 'clarify/cancel', 'clarify/fetchDraft']
-export const BUSINESS_REMOTE_CODES = new Set(['PROCESS_NOT_FOUND', 'PROCESS_BUSY', 'SESSION_ID_REQUIRED', 'INVALID_ANSWER'])
+export const BUSINESS_REMOTE_CODES = new Set([
+  'PROCESS_NOT_FOUND',
+  'PROCESS_BUSY',
+  'SESSION_ID_REQUIRED',
+  'INVALID_ANSWER',
+  'PREVIEW_OUTDATED',
+  'INFERENCE_UNAVAILABLE',
+])
 export const INFRA_REMOTE_CODES = new Set([
   'invocation-unavailable',
   'definition-unavailable',

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
@@ -76,7 +76,11 @@ const env = { DSH_HOME: home }
 execFileSync('pnpm', ['run', 'build'], { cwd: root, stdio: 'inherit' })
 const packDir = mkdtempSync(join(tmpdir(), 'clarify-t1-pack-'))
 execFileSync('pnpm', ['pack', '--pack-destination', packDir], { cwd: root, stdio: 'inherit' })
-const tgz = join(packDir, 'dsh-plugin-clarify-0.1.0.tgz')
+const packageManifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+if (packageManifest.name !== 'dsh-plugin-clarify' || typeof packageManifest.version !== 'string') {
+  throw new Error('package.json must identify a versioned dsh-plugin-clarify package')
+}
+const tgz = join(packDir, `${packageManifest.name}-${packageManifest.version}.tgz`)
 
 step('dsh --version', () => runDsh(dshBin, ['--version'], env))
 dumpStep('init web dump-config', () => runDsh(dshBin, ['--profile', 'web', '--dump-config'], env))

@@ -21,6 +21,8 @@
     "mixed": false,
     "note": "resolved core components match the requested meta version"
   },
+  "standaloneVerdict": "通过",
+  "completeVerdict": "未完成",
   "verdict": "未完成",
   "lifecycle": {
     "verdict": "通过",
@@ -55,7 +57,7 @@
     {
       "name": "plugin add",
       "ok": true,
-      "output": "Progress: resolved 0, reused 0, downloaded 1, added 0\n\ndependencies:\n+ dsh-plugin-clarify file:<redacted-path>\n\nPackages: +1\n+\nPackages are copied from the content-addressable store to the virtual store.\n  <redacted-store>\n  <redacted-store>\nProgress: resolved 1, reused 0, downloaded 1, added 1, done\nDone in 320ms using pnpm v11.19.0\n"
+      "output": "Progress: resolved 0, reused 0, downloaded 1, added 0\n\ndependencies:\n+ dsh-plugin-clarify file:<redacted-path>\n\nPackages: +1\n+\nPackages are copied from the content-addressable store to the virtual store.\n  <redacted-store>\n  <redacted-store>\nProgress: resolved 1, reused 0, downloaded 1, added 1, done\nDone in <ephemeral> using pnpm v11.19.0\n"
     },
     {
       "name": "dump-config after add",
@@ -65,26 +67,16 @@
       "dumpLength": 15857
     },
     {
-      "name": "dsh --help",
-      "ok": true,
-      "output": "Usage: dsh [options] [command] [args...]\n\ndsh: boot a DeepSeek Harness profile — an ordered stack of plugin-bundle patch\nlayers under your own overrides.\n\nArguments:\n  args                        arguments for the booted profile's app (see: dsh\n                              --profile <name> --help)\n\nOptions:\n  -V, --version               output the version number\n  --profile <name>            the profile under $DSH_HOME/profiles to boot\n  --patch <path>              extra patch-list overlay applied after the profile\n                              layer (repeatable)\n  --dump-config               print the composed profile tree and exit\n  --dump-default-config       print the profile tree without its user layer or\n                              --patch overlays and exit\n\nCommands:\n  web [options] [args...]     boot the web profile (alias of --profile web); the\n                              web app's own flags follow\n  plugin [options] [args...]  manage a profile's plugins by forwarding the\n                              remaining arguments to pnpm in the profile\n                              directory\n\nExamples:\n  dsh --profile web                          boot the web profile (same as: dsh web)\n  dsh --profile headless \"run the tests\"     answer one task, print the result, and exit\n  dsh --profile tui --patch ./extra.yml      boot a custom profile with one extra overlay\n  dsh --profile tui --resume <session>       arguments after the launcher flags reach the app\n  dsh --profile web --help                   the web app's own flags and help\n  dsh plugin --profile tui add <package>     install a plugin into the tui profile\n\n"
-    },
-    {
-      "name": "dsh --profile web --help",
-      "ok": true,
-      "output": "Usage: dsh --profile web [options]\n\nServe the DeepSeek Harness browser UI.\n\nOptions:\n  --host <host>                  bind host\n  --no-open                      do not open the Web UI in the default browser\n  --port <port>                  listen port; pass 0 to let the OS pick a free\n                                 one\n  --trusted-host <authority...>  extra authority the /api browser-trust fence\n                                 accepts (host or host:port; repeatable)\n  -h, --help                     show this help\n\nExamples:\n  dsh --profile web                          serve on the composed host and port\n  dsh --profile web --no-open                serve without opening a browser\n  dsh --profile web --port 8080              serve on another port\n\n"
-    },
-    {
       "name": "boot web after add",
       "ok": true,
-      "output": "dsh web: http://127.0.0.1:59616\ndsh web: opening the default browser; pass --no-open to disable\n",
+      "output": "dsh web: http://127.0.0.1:<ephemeral>\ndsh web: opening the default browser; pass --no-open to disable\n",
       "diy": true,
       "remoteLive": true
     },
     {
       "name": "plugin remove",
       "ok": true,
-      "output": "✓ Lockfile passes supply-chain policies (verified 2s ago)\n\ndependencies:\n- dsh-plugin-clarify file:<redacted-path>\n\nAlready up to date\nDone in 249ms using pnpm v11.19.0\n"
+      "output": "✓ Lockfile passes supply-chain policies (verified <ephemeral> ago)\n\ndependencies:\n- dsh-plugin-clarify file:<redacted-path>\n\nAlready up to date\nDone in <ephemeral> using pnpm v11.19.0\n"
     },
     {
       "name": "dump-config after remove",
@@ -101,7 +93,7 @@
     {
       "name": "plugin add again",
       "ok": true,
-      "output": "✓ Lockfile passes supply-chain policies (verified 400ms ago)\nProgress: resolved 0, reused 1, downloaded 0, added 0\n\ndependencies:\n+ dsh-plugin-clarify file:<redacted-path>\n\nPackages: +1\n+\nPackages are copied from the content-addressable store to the virtual store.\n  <redacted-store>\n  <redacted-store>\nProgress: resolved 1, reused 1, downloaded 0, added 1, done\nDone in 300ms using pnpm v11.19.0\n"
+      "output": "✓ Lockfile passes supply-chain policies (verified <ephemeral> ago)\nProgress: resolved 0, reused 1, downloaded 0, added 0\n\ndependencies:\n+ dsh-plugin-clarify file:<redacted-path>\n\nPackages: +1\n+\nPackages are copied from the content-addressable store to the virtual store.\n  <redacted-store>\n  <redacted-store>\nProgress: resolved 1, reused 1, downloaded 0, added 1, done\nDone in <ephemeral> using pnpm v11.19.0\n"
     },
     {
       "name": "dump-config after re-add",
@@ -118,7 +110,5 @@
   ],
   "dumpContainsClarifyAfterAdd": true,
   "dumpContainsClarifyAfterRemove": false,
-  "dumpContainsClarifyAfterReadd": true,
-  "standaloneVerdict": "通过",
-  "completeVerdict": "未完成"
+  "dumpContainsClarifyAfterReadd": true
 }

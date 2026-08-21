@@ -8,6 +8,8 @@ rc.6 元包声明 `^0.1.0-rc.6` 组件，今天会解析到 rc.7 的 base/typert
 
 公开表只把实际跑过第 11 节合同的精确版本标为“已验证”。`latest` / `next` 是动态发现，不是对未发布版本的保证。对尚未发布的未来版本只使用公开能力探测、包内版本化适配器和安全降级。
 
+Clarify `0.2.0`（未发布）的六个 Remote 方法公开返回 `clarify.wire/1` 内层结果联合，作为官方 Gateway 外层成功值。SeekTTY `1.2.0`（未发布）必须先认 `protocol` 再认 echo；目录启发式可以显示旧六方法 Host，但激活要求 `fetchDraft` 与 `refine` 同时给出外层成功 + 内层 v1 `PROCESS_NOT_FOUND`。这不是对未跑过的官方 Host 现场的“已验证”声明；T0(d) 仍阻塞时 Release gate 保持关闭。
+
 | 合同 | 命令 |
 | --- | --- |
 | 解析并去重矩阵 | `pnpm t0:matrix` / `pnpm t1:matrix` |
