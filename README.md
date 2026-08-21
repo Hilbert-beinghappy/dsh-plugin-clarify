@@ -5,7 +5,7 @@
 <p>基于当前 Session 和你的草稿，把模糊想法逐步问成一份待确认、可自行发送的 Draft。</p>
 
 <p>
-  <a href="https://github.com/Hilbert-beinghappy/dsh-plugin-clarify/releases/tag/v0.2.0"><img src="https://img.shields.io/badge/Version-0.2.0-orange" alt="Version 0.2.0"></a>
+  <a href="https://github.com/Hilbert-beinghappy/dsh-plugin-clarify/releases/tag/v0.2.1"><img src="https://img.shields.io/badge/Version-0.2.1-orange" alt="Version 0.2.1"></a>
   <img src="https://img.shields.io/badge/DeepSeek%20Harness-0.1.0--rc.8-5B5BD6" alt="DeepSeek Harness 0.1.0-rc.8">
   <img src="https://img.shields.io/badge/Host%20Plugin-Clarify-0A7EA4" alt="DeepSeek Harness Host plugin">
   <a href="https://github.com/Hilbert-beinghappy/dsh-plugin-clarify/actions/workflows/ci.yml"><img src="https://github.com/Hilbert-beinghappy/dsh-plugin-clarify/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -87,7 +87,7 @@ Plan 处理“需求已经明确、需要决定怎么做”的阶段：Harness �
 
 ### 在 SeekTTY 中
 
-兼容的 Clarify `0.2.0` 六方法 Remote 与 `clarify.wire/1` 激活后，SeekTTY 会把 `/clarify` 加入本地命令目录。
+兼容的 Clarify 六方法 Remote 与 `clarify.wire/1` 激活后，SeekTTY 会把 `/clarify` 加入本地命令目录。当前推荐安装 `0.2.1`；`0.2.0` 保留为已发布回滚工件。
 
 - 从命令面板执行：保留整个输入区作为 seed。
 - 输入 `/clarify some text`：以参数文本作为 seed。
@@ -130,7 +130,7 @@ pnpm add --global @deepseek-ai/dsh@0.1.0-rc.8
 
 dsh plugin --profile tui add https://github.com/Hilbert-beinghappy/seektty/releases/download/v1.2.0/seektty-1.2.0.tgz
 dsh plugin --profile tui add https://github.com/Hilbert-beinghappy/dsh-plugin-auxiliary-runtime/releases/download/v0.1.0/dsh-plugin-auxiliary-runtime-0.1.0.tgz
-dsh plugin --profile tui add https://github.com/Hilbert-beinghappy/dsh-plugin-clarify/releases/download/v0.2.0/dsh-plugin-clarify-0.2.0.tgz
+dsh plugin --profile tui add https://github.com/Hilbert-beinghappy/dsh-plugin-clarify/releases/download/v0.2.1/dsh-plugin-clarify-0.2.1.tgz
 dsh --profile tui
 ```
 
@@ -138,7 +138,7 @@ Host DIY 页面使用独立的 `web` Profile。把两个 Host 插件安装进该
 
 ```sh
 dsh plugin --profile web add https://github.com/Hilbert-beinghappy/dsh-plugin-auxiliary-runtime/releases/download/v0.1.0/dsh-plugin-auxiliary-runtime-0.1.0.tgz
-dsh plugin --profile web add https://github.com/Hilbert-beinghappy/dsh-plugin-clarify/releases/download/v0.2.0/dsh-plugin-clarify-0.2.0.tgz
+dsh plugin --profile web add https://github.com/Hilbert-beinghappy/dsh-plugin-clarify/releases/download/v0.2.1/dsh-plugin-clarify-0.2.1.tgz
 dsh --profile web
 ```
 
@@ -146,7 +146,7 @@ dsh --profile web
 
 ```sh
 dsh plugin --profile tui remove dsh-plugin-clarify
-dsh plugin --profile tui add https://github.com/Hilbert-beinghappy/dsh-plugin-clarify/releases/download/v0.2.0/dsh-plugin-clarify-0.2.0.tgz
+dsh plugin --profile tui add https://github.com/Hilbert-beinghappy/dsh-plugin-clarify/releases/download/v0.2.1/dsh-plugin-clarify-0.2.1.tgz
 ```
 
 安装会按 `package.json#dsh.bundle.patch` 中的 `cordis.patch.yml` 更新目标 Profile。Cordis 子上下文让 Clarify 等待 `auxiliaryRuntime`，Auxiliary Runtime 等待官方 `storageDomain`；服务激活由依赖可用性决定，与添加命令的先后顺序解耦。
@@ -178,11 +178,12 @@ Content-Type: application/json
 }
 ```
 
-当前公开兼容声明：
+当前公开兼容与验证声明：
 
-- 完整动态组合：官方 `@deepseek-ai/dsh@0.1.0-rc.8`、Clarify `0.2.0`、Auxiliary Runtime `0.1.0`、SeekTTY `1.2.0`。
-- 历史独立 lifecycle：官方 rc.6、rc.7、rc.8。
-- 联合验收：隔离 `DSH_HOME`、真实 PTY、三包 Release tarball 的 add／boot／remove／re-add、`/doctor` 0 错误／0 警告、真实模型动态生成问题／选项／preview、多轮 preview 演进、采用后写入输入框、用户自行发送、中断恢复、用量来源和隐私检查。
+- 推荐安装组合：官方 `@deepseek-ai/dsh@0.1.0-rc.8`、Clarify `0.2.1`、Auxiliary Runtime `0.1.0`、SeekTTY `1.2.0`。`0.2.1` 继承 `0.2.0` 的六方法 Remote、`clarify.wire/1` 和精确 rc.8 兼容边界。
+- Clarify `0.2.0` live-provider 联合验收：隔离 `DSH_HOME` 与真实 PTY 中动态生成问题／选项／preview、多轮 preview 演进、采用后只写回输入框并由用户自行发送、中断恢复、用量来源和隐私检查。
+- Clarify `0.2.1` 发布后无 Key 验收：重新下载三包并核对 SHA，在 stock rc.8 Profile 完成 add／boot／remove／re-add，`/doctor` 为 0 错误／0 警告、99 个插件运行，`/clarify` 进入 `running` 并路由到 Auxiliary，随后按隔离环境预期返回 `MISSING_CREDENTIAL`。
+- `0.2.1` 尚未重跑 live-provider 动态多轮，也没有 cache／cost A/B，因此不主张这两项新增实测结果。历史独立 lifecycle 证据继续覆盖官方 rc.6、rc.7、rc.8。
 
 精确兼容矩阵与 T0 证据见 [`docs/compatibility.md`](docs/compatibility.md) 和 [`docs/t0-evidence/`](docs/t0-evidence/)。`pnpm t3` 提供进程内 Remote 冒烟，真实 Host/TUI 验收使用联合轨道。
 
