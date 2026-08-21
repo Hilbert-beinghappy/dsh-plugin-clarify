@@ -1,4 +1,5 @@
 import { captureInferenceSnapshot } from './inference-snapshot.ts'
+import type { DefaultModelSelection } from './inference-snapshot.ts'
 import { ClarifyError, type ResolvedHostBinding } from './types.ts'
 
 export const CLARIFY_REMOTE_NAMESPACE = 'clarify'
@@ -16,6 +17,7 @@ export interface HostLike {
   typert?: TypertLike
   typertGateway?: TypertGatewayLike
   sessions?: SessionsCapability
+  agentDefaultModel?: { currentSelection?: () => DefaultModelSelection }
   webServer?: { register?: unknown; port?: number; host?: string }
   llm?: { stream?: unknown; registerAdapter?: unknown }
   tokenMeter?: { measure?: unknown }
@@ -133,7 +135,11 @@ export function detectHostCapabilities(ctx: object | undefined): HostCapabilitie
   }
 }
 
-export function resolveBindingSafely(sessions: SessionsCapability | undefined, sessionId: string): ResolvedHostBinding {
+export function resolveBindingSafely(
+  sessions: SessionsCapability | undefined,
+  sessionId: string,
+  readDefaultModel?: () => DefaultModelSelection | undefined,
+): ResolvedHostBinding {
   const session = sessions?.get?.(sessionId)
   if (!session) {
     throw new ClarifyError('PROCESS_NOT_FOUND', `session ${sessionId} is not available through the public sessions service`, 'protocol')
@@ -141,7 +147,7 @@ export function resolveBindingSafely(sessions: SessionsCapability | undefined, s
   if (typeof session.seq === 'number' || typeof session.seq === 'string') {
     // session.seq is observed but forbidden as contextVersion.
   }
-  const snapshot = captureInferenceSnapshot(sessionId, session)
+  const snapshot = captureInferenceSnapshot(sessionId, session, Date.now(), readDefaultModel)
   return {
     sessionId,
     contextVersion: snapshot.contextVersion,

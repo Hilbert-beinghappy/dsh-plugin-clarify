@@ -11,10 +11,6 @@
       "types": "./lib/index.d.ts",
       "default": "./lib/index.js"
     },
-    "./acceptance": {
-      "types": "./lib/acceptance.d.ts",
-      "default": "./lib/acceptance.js"
-    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -33,7 +29,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node scripts/build.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "pack": "pnpm pack",

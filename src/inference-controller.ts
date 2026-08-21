@@ -8,7 +8,7 @@ import {
 } from './types.ts'
 
 /** Stable process-local inference slot owned by the main Clarify plugin fiber. */
-export class AcceptanceInferenceController implements InferenceEngine {
+export class InferenceController implements InferenceEngine {
   private readonly unauthorized = new UnauthorizedInferenceEngine()
   private active?: { engine: InferenceEngine; token: symbol }
 
@@ -26,9 +26,9 @@ export class AcceptanceInferenceController implements InferenceEngine {
 
   activate(engine: InferenceEngine): () => void {
     if (this.active) {
-      throw new ClarifyError('INFERENCE_UNAVAILABLE', 'accepted Host inference is already composed', 'conflict')
+      throw new ClarifyError('INFERENCE_UNAVAILABLE', 'auxiliary runtime inference is already active', 'conflict')
     }
-    const token = Symbol('clarify-accepted-inference')
+    const token = Symbol('clarify-auxiliary-inference')
     this.active = { engine, token }
     let disposed = false
     return () => {

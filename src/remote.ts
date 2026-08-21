@@ -1,9 +1,5 @@
 import { ClarifyService } from './clarify-service.ts'
 import {
-  CLARIFY_ACCEPTANCE_COMPOSE,
-  type ClarifyAcceptanceCompose,
-} from './acceptance-channel.ts'
-import {
   CLARIFY_REMOTE_METHODS,
   CLARIFY_REMOTE_NAMESPACE,
   detectHostCapabilities,
@@ -59,7 +55,7 @@ export interface RemoteRegistration {
   reason?: string
 }
 
-export function createClarifyRemote(service: ClarifyService, acceptanceCompose?: ClarifyAcceptanceCompose): ClarifyRemote {
+export function createClarifyRemote(service: ClarifyService): ClarifyRemote {
   const remote: ClarifyRemote = {
     get typertRemote() {
       return binding
@@ -97,14 +93,6 @@ export function createClarifyRemote(service: ClarifyService, acceptanceCompose?:
     serviceKey: CLARIFY_REMOTE_NAMESPACE,
     namespace: CLARIFY_REMOTE_NAMESPACE,
   })
-  if (acceptanceCompose) {
-    Object.defineProperty(remote, CLARIFY_ACCEPTANCE_COMPOSE, {
-      configurable: false,
-      enumerable: false,
-      value: acceptanceCompose,
-      writable: false,
-    })
-  }
   return remote
 }
 
@@ -168,9 +156,8 @@ export function lastClarifyRemoteRegistration(): RemoteRegistration | undefined 
 export function registerClarifyRemote(
   ctx: HostLike,
   service: ClarifyService,
-  acceptanceCompose?: ClarifyAcceptanceCompose,
 ): RemoteRegistration {
-  const remote = createClarifyRemote(service, acceptanceCompose)
+  const remote = createClarifyRemote(service)
   const endpoints = CLARIFY_REMOTE_METHODS.map((method) => `${CLARIFY_REMOTE_NAMESPACE}/${method}`)
   const capabilities = detectHostCapabilities(ctx)
   const liveService = { provided: false, reflected: false, sameIdentity: false }

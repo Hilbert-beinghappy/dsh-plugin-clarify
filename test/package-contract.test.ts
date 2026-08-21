@@ -15,6 +15,7 @@ describe('published package contract', () => {
     optionalDependencies?: Record<string, string>
     exports?: Record<string, unknown>
     files?: string[]
+    scripts?: Record<string, string>
     dsh?: { bundle?: { patch?: string } }
   }
 
@@ -32,15 +33,20 @@ describe('published package contract', () => {
     expect(patch).not.toMatch(/workspace:/)
   })
 
-  it('publishes acceptance as a separate subpath without changing the default entrypoint', () => {
+  it('publishes only the production entrypoint and no inference bypass subpath', () => {
     expect(pkg.exports?.['.']).toEqual({
       types: './lib/index.d.ts',
       default: './lib/index.js',
     })
-    expect(pkg.exports?.['./acceptance']).toEqual({
-      types: './lib/acceptance.d.ts',
-      default: './lib/acceptance.js',
-    })
+    expect(pkg.exports).not.toHaveProperty('./acceptance')
+    expect(pkg.exports).not.toHaveProperty('./prepared-call-inference')
+  })
+
+  it('cleans generated output before compiling so retired bypasses cannot survive', () => {
+    expect(pkg.scripts?.build).toBe('node scripts/build.mjs')
+    const build = readFileSync(join(root, 'scripts/build.mjs'), 'utf8')
+    expect(build).toContain("new URL('../lib/'")
+    expect(build).toMatch(/rmSync\(output, \{ recursive: true, force: true \}\)/u)
   })
 
   it('has a strict files allowlist', () => {
@@ -110,31 +116,14 @@ describe('source persistence guard', () => {
     expect(source).not.toContain('Which constraints should the draft respect?')
   })
 
-  it('prepared inference cannot write Session usage, transcript, or Agent-loop metadata', () => {
-    const source = readFileSync(join(root, 'src/prepared-call-inference.ts'), 'utf8')
-    expect(source).not.toMatch(/\btokenMeter\b/)
-    expect(source).not.toMatch(/\.append\s*\(/)
-    expect(source).not.toMatch(/session\.prompt\s*\(/)
-    expect(source).not.toMatch(/\bmarkAgentLoopRequest\b/)
-    expect(source).not.toMatch(/\bpurpose\s*:/)
-  })
-
-  it('keeps acceptance wiring out of the stock main entrypoint and public barrel', () => {
+  it('keeps direct LLM and acceptance-composer bypasses out of the package', () => {
     const index = readFileSync(join(root, 'src/index.ts'), 'utf8')
     const publicApi = readFileSync(join(root, 'src/public-api.ts'), 'utf8')
-    expect(index).not.toMatch(/prepared-call-inference/)
-    expect(index).not.toMatch(/from ['"]\.\/acceptance\.ts['"]/)
-    expect(index).not.toMatch(/prepareCall/)
-    expect(index).not.toMatch(/ctx\.llm/)
-    expect(publicApi).not.toMatch(/acceptance/)
-  })
-
-  it('keeps the acceptance composer free of Session writes and Agent-loop metadata', () => {
-    const source = readFileSync(join(root, 'src/acceptance.ts'), 'utf8')
-    expect(source).not.toMatch(/\btokenMeter\b/)
-    expect(source).not.toMatch(/\.append\s*\(/)
-    expect(source).not.toMatch(/session\.prompt\s*\(/)
-    expect(source).not.toMatch(/\bmarkAgentLoopRequest\b/)
-    expect(source).not.toMatch(/\bpurpose\s*:/)
+    const sourceNames = readdirSync(join(root, 'src'))
+    expect(sourceNames).not.toContain('acceptance.ts')
+    expect(sourceNames).not.toContain('acceptance-channel.ts')
+    expect(sourceNames).not.toContain('prepared-call-inference.ts')
+    expect(index).not.toMatch(/acceptance|prepareCall|ctx\.llm/)
+    expect(publicApi).not.toMatch(/acceptance|PreparedCall|prepareCall/)
   })
 })

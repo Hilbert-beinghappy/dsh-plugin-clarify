@@ -96,11 +96,73 @@ describe('private immutable inference snapshot', () => {
     }).toThrow()
   })
 
-  it('fails closed when the official Session has no usable route header', () => {
-    expect(() => captureInferenceSnapshot('fresh-session', {
+  it('uses the public default route only for a truly empty Session', () => {
+    const captured = captureInferenceSnapshot('fresh-session', {
       requestHeader: () => undefined,
+      requestContext: () => undefined,
       deriveMessages: () => [],
+    }, 1234, () => ({ provider: 'default-provider', model: 'default-model', reasoningEffort: 'high' }))
+    expect(captured.callConfig).toEqual({
+      provider: 'default-provider',
+      model: 'default-model',
+      reasoningEffort: 'high',
+    })
+    expect(captured.requestContext).toBeUndefined()
+  })
+
+  it('never substitutes the current default for history without a request header', () => {
+    expect(() => captureInferenceSnapshot('broken-history', {
+      requestHeader: () => undefined,
+      requestContext: () => undefined,
+      deriveMessages: () => [{
+        id: 'history',
+        role: 'user',
+        content: [{ type: 'text', text: 'existing history' }],
+        source: { kind: 'user' },
+      }],
+    }, 1234, () => ({ provider: 'new-default', model: 'new-model' }))).toThrowError(
+      expect.objectContaining<Partial<ClarifyError>>({ code: 'INFERENCE_UNAVAILABLE' }),
+    )
+  })
+
+  it('locks an existing Session header without consulting a changed default', () => {
+    let defaultReads = 0
+    const captured = captureInferenceSnapshot('existing-session', {
+      requestHeader: () => ({ config: { provider: 'session-provider', model: 'session-model' } }),
+      requestContext: () => ({ provider: 'session-provider', model: 'session-model', contextWindow: 64_000 }),
+      deriveMessages: () => [],
+    }, 1234, () => {
+      defaultReads += 1
+      return { provider: 'new-default', model: 'new-model' }
+    })
+    expect(captured.callConfig).toMatchObject({ provider: 'session-provider', model: 'session-model' })
+    expect(defaultReads).toBe(0)
+  })
+
+  it('never substitutes the current default when a Session header exists without config', () => {
+    let defaultReads = 0
+    expect(() => captureInferenceSnapshot('incomplete-header', {
+      requestHeader: () => ({ system: 'existing Session system', tools: [] }),
+      requestContext: () => undefined,
+      deriveMessages: () => [],
+    }, 1234, () => {
+      defaultReads += 1
+      return { provider: 'new-default', model: 'new-model' }
     })).toThrowError(expect.objectContaining<Partial<ClarifyError>>({ code: 'INFERENCE_UNAVAILABLE' }))
+    expect(defaultReads).toBe(0)
+  })
+
+  it('fails closed when the Host returns an invalid request header value', () => {
+    let defaultReads = 0
+    expect(() => captureInferenceSnapshot('invalid-header', {
+      requestHeader: () => null as never,
+      requestContext: () => undefined,
+      deriveMessages: () => [],
+    }, 1234, () => {
+      defaultReads += 1
+      return { provider: 'new-default', model: 'new-model' }
+    })).toThrowError(expect.objectContaining<Partial<ClarifyError>>({ code: 'INFERENCE_UNAVAILABLE' }))
+    expect(defaultReads).toBe(0)
   })
 
   it('fails closed when the Host cannot derive the model-visible message history', () => {

@@ -27,6 +27,18 @@ try {
   if (listing.toLowerCase().includes('seektty') || listing.includes('workspace:')) {
     throw new Error('packed tarball contains seektty or workspace: protocol')
   }
+  const forbiddenInferenceBypasses = entries.filter((entry) => (
+    /(?:acceptance(?:-channel)?|prepared-call-inference)\.(?:js|d\.ts)$/u.test(entry)
+  ))
+  if (forbiddenInferenceBypasses.length > 0) {
+    throw new Error(`packed tarball contains retired inference bypasses:\n${forbiddenInferenceBypasses.join('\n')}`)
+  }
+  for (const required of [
+    'package/lib/auxiliary-runtime-inference.js',
+    'package/lib/auxiliary-runtime-inference.d.ts',
+  ]) {
+    if (!entries.includes(required)) throw new Error(`packed tarball is missing ${required}`)
+  }
   const pkgJson = execFileSync('tar', ['-xzf', tgz, '-O', 'package/package.json'], { encoding: 'utf8' })
   if (pkgJson.includes('workspace:') || pkgJson.toLowerCase().includes('seektty')) {
     throw new Error('packed package.json contains seektty or workspace:')

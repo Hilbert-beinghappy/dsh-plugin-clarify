@@ -39,6 +39,7 @@ export interface ClarifyRepairData {
 
 export interface ClarifyPromptOptions {
   repair?: ClarifyRepairData
+  contextWindow?: number
   outputTokenReserve?: number
 }
 
@@ -53,7 +54,10 @@ export function buildClarifyOneShotRequest(
   if (!snapshot.callConfig.provider || !snapshot.callConfig.model) {
     throw new ClarifyError('INFERENCE_UNAVAILABLE', 'inference snapshot is missing its model route', 'configuration')
   }
-  const contextWindow = requiredPositiveNumber(snapshot.requestContext?.contextWindow, 'requestContext.contextWindow')
+  const contextWindow = requiredPositiveNumber(
+    options.contextWindow ?? snapshot.requestContext?.contextWindow,
+    options.contextWindow === undefined ? 'requestContext.contextWindow' : 'prepared contextWindow',
+  )
   const outputTokenReserve = requiredPositiveNumber(
     options.outputTokenReserve ?? snapshot.callConfig.maxTokens,
     'prepared maxTokens',

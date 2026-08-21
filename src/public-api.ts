@@ -42,14 +42,6 @@ export { dispatchClarifyRpc, dispatchClarifyRpcBody, CLARIFY_RPC_METHODS } from 
 export { modelRouteIdFromConfig, contextVersionFromModelVisible } from './fingerprints.ts'
 export { captureInferenceSnapshot, snapshotHashesMatch } from './inference-snapshot.ts'
 export { buildClarifyOneShotRequest, CLARIFY_CONTROL_SYSTEM, PROMPT_SAFETY_TOKENS } from './inference-prompt.ts'
-export { callConfigEquals, MAX_MODEL_OUTPUT_CHARS, PreparedCallInferenceEngine } from './prepared-call-inference.ts'
-export type {
-  PreparedCallInferenceOptions,
-  PreparedCallLike,
-  PreparedCallLlmLike,
-  PreparedGenerateOptions,
-  PreparedStreamChunk,
-} from './prepared-call-inference.ts'
 export {
   parseModelInferenceJson,
   assertModelInference,

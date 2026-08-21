@@ -11,25 +11,22 @@ export interface SnapshotSession {
   deriveMessages?: () => unknown
 }
 
+export interface DefaultModelSelection {
+  readonly provider: string
+  readonly model: string
+  readonly reasoningEffort?: string
+}
+
 export function captureInferenceSnapshot(
   sessionId: string,
   session: SnapshotSession,
   capturedAt = Date.now(),
+  readDefaultModel?: () => DefaultModelSelection | undefined,
 ): InferenceSnapshot {
   const header = callHostSurface(() => session.requestHeader?.(), 'session requestHeader() failed')
-  const config = header?.config
-  const provider = requiredRouteText(config?.provider, 'provider')
-  const model = requiredRouteText(config?.model, 'model')
-  const callConfig: InferenceCallConfig = {
-    provider,
-    model,
-    ...optionalText(config?.reasoningEffort, 'reasoningEffort'),
-    ...optionalFiniteNumber(config?.temperature, 'temperature'),
-    ...optionalFiniteNumber(config?.maxTokens, 'maxTokens'),
-    ...optionalStringList(config?.stop, 'stop'),
+  if (header !== undefined && !isRecord(header)) {
+    throw new ClarifyError('INFERENCE_UNAVAILABLE', 'session requestHeader() returned an invalid value', 'configuration')
   }
-  const system = typeof header?.system === 'string' ? header.system : undefined
-  const tools = cloneModelData(header?.tools)
   const derived = cloneModelData(callHostSurface(
     () => session.deriveMessages?.(),
     'session deriveMessages() failed',
@@ -42,6 +39,21 @@ export function captureInferenceSnapshot(
     'session requestContext() failed',
   ))
   const requestContext = isRecord(requestContextValue) ? requestContextValue : undefined
+  const config = (header === undefined
+    ? emptySessionDefault(derived, requestContext, readDefaultModel)
+    : header.config) as Readonly<Record<string, unknown>> | undefined
+  const provider = requiredRouteText(config?.provider, 'provider')
+  const model = requiredRouteText(config?.model, 'model')
+  const callConfig: InferenceCallConfig = {
+    provider,
+    model,
+    ...optionalText(config?.reasoningEffort, 'reasoningEffort'),
+    ...optionalFiniteNumber(config?.temperature, 'temperature'),
+    ...optionalFiniteNumber(config?.maxTokens, 'maxTokens'),
+    ...optionalStringList(config?.stop, 'stop'),
+  }
+  const system = typeof header?.system === 'string' ? header.system : undefined
+  const tools = cloneModelData(header?.tools)
   if (
     requestContext !== undefined
     && (requestContext.provider !== provider || requestContext.model !== model)
@@ -62,6 +74,29 @@ export function captureInferenceSnapshot(
     contextVersion,
     modelRouteId,
   })
+}
+
+function emptySessionDefault(
+  derived: readonly unknown[],
+  requestContext: Readonly<Record<string, unknown>> | undefined,
+  readDefaultModel: (() => DefaultModelSelection | undefined) | undefined,
+): DefaultModelSelection | undefined {
+  if (derived.length > 0 || requestContext !== undefined) {
+    throw new ClarifyError(
+      'INFERENCE_UNAVAILABLE',
+      'Session history exists without a request header; refusing to substitute the current default model',
+      'configuration',
+    )
+  }
+  const selection = callHostSurface(() => readDefaultModel?.(), 'agent default model selection failed')
+  if (selection === undefined) {
+    throw new ClarifyError(
+      'INFERENCE_UNAVAILABLE',
+      'empty Session requires the public agentDefaultModel selection',
+      'configuration',
+    )
+  }
+  return selection
 }
 
 export function snapshotHashesMatch(snapshot: InferenceSnapshot): boolean {
