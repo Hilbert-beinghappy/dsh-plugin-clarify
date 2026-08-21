@@ -31,6 +31,11 @@ describe('public evidence sanitizer', () => {
     expect(cleaned).not.toMatch(/51138|382ms|verified 2s/)
   })
 
+  it('normalizes timestamps and RPC ids in captured payloads', () => {
+    expect(sanitizeText('{"capturedAt":"2026-08-21T01:44:54.944Z","rpcId":"1b835a62-8f54-4406-80db-28f6160752ee","webServerPort":59403}'))
+      .toBe('{"capturedAt":"<ephemeral-timestamp>","rpcId":"<ephemeral-uuid>","webServerPort":"<ephemeral>"}')
+  })
+
   it('publishes only loopback origin shape', () => {
     expect(publicOrigin('http://127.0.0.1:60358')).toBe('http://127.0.0.1:<ephemeral>')
     expect(publicOrigin('https://example.internal')).toBe('<redacted-origin>')

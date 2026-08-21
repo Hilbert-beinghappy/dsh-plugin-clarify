@@ -41,17 +41,12 @@
     {
       "name": "plugin add tgz",
       "ok": true,
-      "output": "Progress: resolved 0, reused 0, downloaded 1, added 0\n\ndependencies:\n+ dsh-plugin-clarify file:<redacted-path>\n\nPackages: +1\n+\nPackages are copied from the content-addressable store to the virtual store.\n  <redacted-store>\n  <redacted-store>\nProgress: resolved 1, reused 0, downloaded 1, added 1, done\nDone in 314ms using pnpm v11.19.0\n"
+      "output": "Progress: resolved 0, reused 0, downloaded 1, added 0\n\ndependencies:\n+ dsh-plugin-clarify file:<redacted-path>\n\nPackages: +1\n+\nPackages are copied from the content-addressable store to the virtual store.\n  <redacted-store>\n  <redacted-store>\nProgress: resolved 1, reused 0, downloaded 1, added 1, done\nDone in <ephemeral> using pnpm v11.19.0\n"
     },
     {
       "name": "dump-config after add",
       "ok": true,
       "output": "# == dsh-plugin-clarify\n- id: clarify\n  name: dsh-plugin-clarify"
-    },
-    {
-      "name": "dsh --profile web --help",
-      "ok": true,
-      "output": "Usage: dsh --profile web [options]\n\nServe the DeepSeek Harness browser UI.\n\nOptions:\n  --host <host>                  bind host\n  --no-open                      do not open the Web UI in the default browser\n  --port <port>                  listen port; pass 0 to let the OS pick a free\n                                 one\n  --trusted-host <authority...>  extra authority the /api browser-trust fence\n                                 accepts (host or host:port; repeatable)\n  -h, --help                     show this help\n\nExamples:\n  dsh --profile web                          serve on the composed host and port\n  dsh --profile web --no-open                serve without opening a browser\n  dsh --profile web --port 8080              serve on another port\n\n"
     }
   ],
   "pluginAddOk": true,
@@ -69,12 +64,13 @@
     "remote": {
       "status": 200,
       "live": true,
-      "errorCode": "internal",
+      "errorCode": "PROCESS_NOT_FOUND",
       "envelope": "server-response"
     },
     "hostT3": {
-      "ok": true,
-      "blocked": false,
+      "ok": false,
+      "blocked": true,
+      "reason": "INFERENCE_UNAVAILABLE: session requestHeader() is missing model route provider; error: start returned no question; error: answer-1 returned no question; error: complete was not reached",
       "interactive": false,
       "envelopeLive": true,
       "endpoints": {
@@ -82,7 +78,7 @@
           "status": 200,
           "envelope": "server-response",
           "ok": false,
-          "errorCode": "internal",
+          "errorCode": "PROCESS_NOT_FOUND",
           "errorMessage": "session missing-session is not available through the public sessions service",
           "live": true
         },
@@ -90,7 +86,23 @@
           "status": 200,
           "envelope": "server-response",
           "ok": false,
-          "errorCode": "internal",
+          "errorCode": "PROCESS_NOT_FOUND",
+          "errorMessage": "process missing-process does not exist",
+          "live": true
+        },
+        "accept": {
+          "status": 200,
+          "envelope": "server-response",
+          "ok": false,
+          "errorCode": "PROCESS_NOT_FOUND",
+          "errorMessage": "process missing-process does not exist",
+          "live": true
+        },
+        "refine": {
+          "status": 200,
+          "envelope": "server-response",
+          "ok": false,
+          "errorCode": "PROCESS_NOT_FOUND",
           "errorMessage": "process missing-process does not exist",
           "live": true
         },
@@ -98,7 +110,7 @@
           "status": 200,
           "envelope": "server-response",
           "ok": false,
-          "errorCode": "internal",
+          "errorCode": "PROCESS_NOT_FOUND",
           "errorMessage": "process missing-process does not exist",
           "live": true
         },
@@ -106,7 +118,7 @@
           "status": 200,
           "envelope": "server-response",
           "ok": false,
-          "errorCode": "internal",
+          "errorCode": "PROCESS_NOT_FOUND",
           "errorMessage": "process missing-process does not exist",
           "live": true
         }
@@ -122,13 +134,25 @@
         "note": "Session came from this T0 probe test fixture and was then found via session.list. Isolation only; production plugin and DIY must not create Session."
       },
       "steps": {
-        "start": "running",
-        "answer1": "running",
-        "complete": "complete",
-        "draftPresent": true,
+        "draftPresent": false,
         "completeHadDraft": false
       },
-      "errors": [],
+      "errors": [
+        {
+          "code": "INFERENCE_UNAVAILABLE",
+          "message": "session requestHeader() is missing model route provider",
+          "category": "configuration"
+        },
+        {
+          "message": "start returned no question"
+        },
+        {
+          "message": "answer-1 returned no question"
+        },
+        {
+          "message": "complete was not reached"
+        }
+      ],
       "note": "GET /clarify static HTML is not an interactive T3 pass. Session source=t0-probe-test-fixture, createdByHarness=true, productionPluginCreated=false. Isolation test fixture only; production plugin and DIY must not create Session."
     }
   }

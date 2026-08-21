@@ -33,7 +33,14 @@ export function verdictB(header) {
   return { status: '阻塞', reason: header?.reason || '新鲜 Session 无 requestHeader，且无独立 context revision id' }
 }
 
-export const CLARIFY_ENDPOINTS = ['clarify/start', 'clarify/answer', 'clarify/cancel', 'clarify/fetchDraft']
+export const CLARIFY_ENDPOINTS = [
+  'clarify/start',
+  'clarify/answer',
+  'clarify/accept',
+  'clarify/refine',
+  'clarify/cancel',
+  'clarify/fetchDraft',
+]
 export const BUSINESS_REMOTE_CODES = new Set([
   'PROCESS_NOT_FOUND',
   'PROCESS_BUSY',
@@ -76,7 +83,7 @@ export function namespaceClaimed(web) {
 export function carrierHit(consumer) {
   const endpoints = consumer?.endpoints
   if (!endpoints || typeof endpoints !== 'object') return false
-  return ['start', 'answer', 'cancel', 'fetchDraft'].every((method) => {
+  return ['start', 'answer', 'accept', 'refine', 'cancel', 'fetchDraft'].every((method) => {
     const item = endpoints[method]
     return Boolean(item && (item.kind === 'business' || item.status === 'hit'))
   })
@@ -102,11 +109,11 @@ export function verdictC(web, evidence) {
   if (claimed && (gatewayHit || httpHit)) {
     return {
       status: '可行',
-      reason: 'typert.local 已 claim 四端点，且 Gateway 或 /api 信封以 Clarify 业务错误/结果命中 receiver',
+      reason: 'typert.local 已 claim 六端点，且 Gateway 或 /api 信封以 Clarify 业务错误/结果命中 receiver',
     }
   }
   const reasons = []
-  if (!claimed) reasons.push('typert.local 未列出 clarify/start|answer|cancel|fetchDraft')
+  if (!claimed) reasons.push('typert.local 未列出 Clarify 六端点')
   if (!gatewayHit && !httpHit) {
     reasons.push('Gateway/HTTP 未以业务错误命中 receiver（invocation-unavailable / 404 只证明基础设施阻塞）')
   }
@@ -122,19 +129,39 @@ export function verdictD(usage) {
   }
   const before = usage?.usageMeasureBefore
   const after = usage?.usageMeasureAfter
+  const projectionBefore = usage?.usageProjectionBefore
+  const projectionAfter = usage?.usageProjectionAfter
+  const expectedProjectionDelta = usage?.expectedUsageProjectionDelta
+  const expectedTotalTokensDelta = usage?.expectedTotalTokensDelta
+  const usageDeltaMatches = exactNumericDelta(before, after, 'totalTokens', expectedTotalTokensDelta)
+    && ['uncachedInputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens']
+      .every((key) => exactNumericDelta(projectionBefore, projectionAfter, key, expectedProjectionDelta?.[key]))
+  const limitsObserved = usage?.limits?.status === 'observed'
+  const cancellationObserved = usage?.cancellation?.status === 'observed'
   if (
     usage?.status === 'observed'
     && usage?.sessionSource === 'existing'
-    && JSON.stringify(before) !== JSON.stringify(after)
+    && usageDeltaMatches
+    && limitsObserved
+    && cancellationObserved
     && after
     && !after.error
+    && projectionAfter
+    && !projectionAfter.error
   ) {
-    return { status: '可行', reason: '已存在 Session 上的 tokenMeter.measure 在直接 stream 前后发生变化' }
+    return { status: '可行', reason: '已存在 Session 的 TokenMeter/tokenUsage 精确增量与本次探针 usage 一致，且 Harness limits/cancel 通道均已现场观察' }
   }
   return {
     status: '阻塞',
-    reason: '未观察到 Harness usage 投影因直接 ctx.llm.stream 而记入已存在 Session；limits/cancel 通道也未在本探针中被触发',
+    reason: '未同时证明本次直接 stream 的精确 usage 增量记入已存在 Session，且 Harness limits/cancel 通道均可用',
   }
+}
+
+function exactNumericDelta(before, after, key, expected) {
+  return Number.isFinite(before?.[key])
+    && Number.isFinite(after?.[key])
+    && Number.isFinite(expected)
+    && after[key] - before[key] === expected
 }
 
 export function gateTable(probe, extras = {}) {

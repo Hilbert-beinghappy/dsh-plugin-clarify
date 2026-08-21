@@ -1,12 +1,16 @@
 {
   "type": "server-response",
-  "rpcId": "50c73f03-7004-47e4-b006-61ca028d0612",
+  "rpcId": "<ephemeral-uuid>",
   "result": {
-    "ok": false,
-    "error": {
-      "code": "internal",
-      "message": "session missing-session is not available through the public sessions service",
-      "details": {}
+    "ok": true,
+    "value": {
+      "protocol": "clarify.wire/1",
+      "ok": false,
+      "error": {
+        "code": "PROCESS_NOT_FOUND",
+        "message": "session missing-session is not available through the public sessions service",
+        "category": "protocol"
+      }
     }
   }
 }

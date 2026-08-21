@@ -160,7 +160,7 @@ else if (http.probe) {
 if (http.remote?.json) writeEvidence(version, 'remote-start.json', http.remote.json)
 if (http.hostT3) writeEvidence(version, 'host-t3.json', http.hostT3)
 writeEvidence(version, 'dump-clarify.txt', summarizeDump(dumpFull))
-writeEvidence(version, 'help.txt', dshHelp.output ?? '')
+writeEvidence(version, 'help.txt', (dshHelp.output ?? '').trimEnd())
 writeEvidence(version, 'boot.txt', http.bootOutput ?? '')
 
 const report = writeBlockingReport(version, {
@@ -211,7 +211,7 @@ function writeHttpRaw(version, name, result) {
     live: result.live,
     ok: result.ok,
     errorCode: result.error?.code,
-    textPreview: truncate(result.text ?? result.textPreview ?? '', 4000),
+    textPreview: truncate(sanitize(result.text ?? result.textPreview ?? ''), 4000),
   })
 }
 
@@ -219,7 +219,7 @@ function sanitizeHeaders(headers) {
   const out = {}
   for (const [key, value] of Object.entries(headers ?? {})) {
     if (/cookie|authorization|token|secret/i.test(key)) continue
-    out[key] = value
+    out[key] = key.toLowerCase() === 'date' ? '<ephemeral>' : sanitize(value)
   }
   return out
 }
@@ -242,6 +242,8 @@ async function runHostT3(origin, probeUsage = {}) {
   const endpoints = {
     start: summarizeRemote(await callClarify(origin, 'start', { sessionId: 'missing-session' })),
     answer: summarizeRemote(await callClarify(origin, 'answer', { processId: 'missing-process', questionId: 'q' })),
+    accept: summarizeRemote(await callClarify(origin, 'accept', { processId: 'missing-process', previewVersion: 'missing-preview' })),
+    refine: summarizeRemote(await callClarify(origin, 'refine', { processId: 'missing-process', previewVersion: 'missing-preview', feedback: 'probe' })),
     cancel: summarizeRemote(await callClarify(origin, 'cancel', { processId: 'missing-process' })),
     fetchDraft: summarizeRemote(await callClarify(origin, 'fetchDraft', { processId: 'missing-process' })),
   }
@@ -267,7 +269,7 @@ async function runHostT3(origin, probeUsage = {}) {
       endpoints,
       envelopeLive,
       sessionDiscovery: labelHostT3Session({ created: false, attempted: false }, probeUsage),
-      note: 'GET /clarify static HTML is not an interactive T3 pass. Full-round fixture session is only created after the four endpoints are live. Production plugin and DIY must not create Session.',
+      note: 'GET /clarify static HTML is not an interactive T3 pass. Full-round fixture session is only created after the six endpoints are live. Production plugin and DIY must not create Session.',
     }
   }
   let discovery = await discoverExistingSession(origin)
@@ -313,9 +315,14 @@ async function runHostT3(origin, probeUsage = {}) {
   const cancelled = q1?.processId
     ? await callClarify(origin, 'cancel', { processId: q1.processId })
     : { ok: false, error: { message: 'no processId to cancel' } }
+  const errors = [started.error, answered1.error, completed.error, fetched.error].filter(Boolean)
+  const ok = Boolean(started.ok && answered1.ok && completed.ok && fetched.ok && fetched.value?.draft && completed.value?.draft === undefined)
   return {
-    ok: started.ok && answered1.ok && completed.ok && fetched.ok && fetched.value?.draft && completed.value?.draft === undefined,
-    blocked: false,
+    ok,
+    blocked: !ok && errors.some((error) => error?.category === 'configuration'),
+    reason: ok
+      ? undefined
+      : errors.map((error) => `${error?.code ?? 'error'}: ${error?.message ?? 'unknown failure'}`).join('; '),
     interactive: false,
     envelopeLive,
     endpoints,
@@ -328,7 +335,7 @@ async function runHostT3(origin, probeUsage = {}) {
       completeHadDraft: completed.value?.draft !== undefined,
       cancel: cancelled.value?.status,
     },
-    errors: [started.error, answered1.error, completed.error, fetched.error].filter(Boolean),
+    errors,
     note: hostT3Note(sessionDiscovery),
   }
 }
@@ -392,6 +399,12 @@ function writeBlockingReport(version, evidence) {
 - 无 Agent-loop 标记：\`${usage.requestWasAgentLoop === false}\`
 - 事件条数变化：\`${usage.eventCountDelta ?? 'n/a'}\`
 - deriveMessages 条数变化：\`${usage.derivedDelta ?? 'n/a'}\`
+- Session 来源：\`${usage.sessionSource ?? 'n/a'}\`
+- TokenMeter totalTokens：\`${usage.usageMeasureBefore?.totalTokens ?? 'n/a'} -> ${usage.usageMeasureAfter?.totalTokens ?? 'n/a'}\`
+- tokenUsage 投影：\`${JSON.stringify(usage.usageProjectionBefore ?? null)} -> ${JSON.stringify(usage.usageProjectionAfter ?? null)}\`
+- 本次探针期望增量：\`total=${usage.expectedTotalTokensDelta ?? 'n/a'} / ${JSON.stringify(usage.expectedUsageProjectionDelta ?? null)}\`
+- limits 通道：\`${usage.limits?.status ?? 'unproven'}\` — ${usage.limits?.reason ?? ''}
+- cancel 通道：\`${usage.cancellation?.status ?? 'unproven'}\` — ${usage.cancellation?.reason ?? ''}
 - stream 错误：\`${usage.streamError ?? 'none'}\`
 - adapter 错误：\`${usage.adapterError ?? 'none'}\`
 
@@ -414,7 +427,7 @@ function writeBlockingReport(version, evidence) {
 - DIY 静态签名不等于交互通过：\`${evidence.http?.clarify?.diy ? '签名匹配' : '签名不匹配'}\`；交互 T7 未声称通过
 - \`webServer.register\`：\`${web.hasRegister ?? 'unknown'}\`
 - \`ctx.typert.register\`：\`${web.hasTypertRegister ?? 'unknown'}\`
-- \`typert.local\` claim 四端点：\`${web.clarifyRemoteClaimed === true}\`；列出 \`${Array.isArray(web.typertLocalEndpoints) ? web.typertLocalEndpoints.filter((item) => String(item).startsWith('clarify/')).join(', ') || 'none' : 'n/a'}\`
+- \`typert.local\` claim 六端点：\`${web.clarifyRemoteClaimed === true}\`；列出 \`${Array.isArray(web.typertLocalEndpoints) ? web.typertLocalEndpoints.filter((item) => String(item).startsWith('clarify/')).join(', ') || 'none' : 'n/a'}\`
 - Remote 注册：\`${web.remoteRegistration?.status ?? 'n/a'}\`${web.remoteRegistration?.reason ? ` — ${web.remoteRegistration.reason}` : ''}
 - Gateway 到达：\`${web.consumerPath?.status ?? 'unknown'}\` / \`${web.consumerPath?.observed ?? 0}\`；仅 business hit 算抵达
 - \`typertGateway.invoke\`：\`${web.hasTypertGatewayInvoke ?? web.hasTypertGateway ?? 'unknown'}\`

@@ -30,6 +30,7 @@ export interface ProbeContext {
   }
   webServer?: { register?: unknown; port?: number; host?: string }
   tokenMeter?: { measure?: (session: unknown) => unknown }
+  sessionProjections?: { snapshot?: (session: unknown) => unknown }
   typert?: {
     register?: unknown
     local?: { list?: () => unknown[]; get?: (endpoint: string) => unknown }
@@ -64,7 +65,7 @@ export function peekService(ctx: object, name: string): { present: boolean; erro
 
 export async function collectProbeEvidence(ctx: ProbeContext): Promise<Record<string, unknown>> {
   const serviceNames = [
-    'llm', 'sessions', 'webServer', 'tokenMeter', 'typert', 'typertGateway',
+    'llm', 'sessions', 'webServer', 'tokenMeter', 'sessionProjections', 'typert', 'typertGateway',
     'remote', 'clientModules', 'agents', 'connection', 'credentials',
   ]
   const services: Record<string, { present: boolean; error?: string }> = {}
@@ -198,6 +199,12 @@ async function runUsageProbeInner(
     streamError = errorMessage(error)
   }
   const after = snapshotSession(ctx, session)
+  const expectedUsageProjectionDelta = {
+    uncachedInputTokens: 3,
+    outputTokens: 1,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+  }
 
   return {
     status: streamError === undefined && adapterError === undefined ? 'observed' : 'blocked',
@@ -215,6 +222,18 @@ async function runUsageProbeInner(
     surfaceNodeCountAfter: after.surfaceCount,
     usageMeasureBefore: before.usage,
     usageMeasureAfter: after.usage,
+    usageProjectionBefore: before.usageProjection,
+    usageProjectionAfter: after.usageProjection,
+    expectedUsageProjectionDelta,
+    expectedTotalTokensDelta: 4,
+    limits: {
+      status: 'unproven',
+      reason: 'this probe did not observe a public Host limits channel rejecting the auxiliary stream',
+    },
+    cancellation: {
+      status: 'unproven',
+      reason: 'this probe did not observe a public Host cancellation channel aborting the auxiliary stream',
+    },
     offTranscript: after.derivedCount === before.derivedCount && after.eventCount === before.eventCount,
     probeCreatedSession: created.created,
     sessionSource: created.created ? 'created-by-probe' : 'existing',
@@ -222,6 +241,7 @@ async function runUsageProbeInner(
       'Direct ctx.llm.stream was invoked without markAgentLoopRequest and without tools.',
       'If event/derived deltas are zero, the call did not append a transcript surface; usage still requires a Harness usage channel.',
       'A probe-created session is only a P-usage fixture. It does not prove usage attribution on a bound user Session.',
+      'Gate (d) also requires independent limits and cancellation observations; usage attribution alone cannot pass it.',
     ],
   }
 }
@@ -293,7 +313,7 @@ async function runWebProbe(ctx: ProbeContext): Promise<Record<string, unknown>> 
     } catch (error) {
       graphError = errorMessage(error)
     }
-    const listed = listTypertEndpoints(typert)
+    const listed = listTypertEndpoints(typert).sort()
     const expectedEndpoints = CLARIFY_REMOTE_METHODS.map((method) => `${CLARIFY_REMOTE_NAMESPACE}/${method}`)
     const claimed = expectedEndpoints
       .every((endpoint) => listed.includes(endpoint))
@@ -375,10 +395,7 @@ async function probeClarifyConsumer(gateway: ProbeContext['typertGateway']): Pro
       : { processId: 'clarify-probe-missing-process' }
     try {
       const result = await gateway.invoke({ namespace: CLARIFY_REMOTE_NAMESPACE, method, args })
-      const arrival = classifyArrival({
-        value: result,
-        processId: result && typeof result === 'object' ? (result as { processId?: unknown }).processId : undefined,
-      })
+      const arrival = classifyArrival({ value: result })
       endpoints[method] = {
         status: arrival.kind === 'business' ? 'hit' : 'blocked',
         kind: arrival.kind,
@@ -412,8 +429,20 @@ async function probeClarifyConsumer(gateway: ProbeContext['typertGateway']): Pro
 function classifyArrival(input: { message?: string; code?: string; value?: unknown; processId?: unknown }): {
   kind: 'business' | 'infrastructure' | 'none'
 } {
-  const message = String(input.message ?? '')
-  const code = String(input.code ?? '')
+  const record = input.value && typeof input.value === 'object'
+    ? input.value as { protocol?: unknown; ok?: unknown; error?: unknown; value?: unknown; processId?: unknown }
+    : undefined
+  const wireError = record?.protocol === 'clarify.wire/1' && record.ok === false && record.error && typeof record.error === 'object'
+    ? record.error as { code?: unknown; message?: unknown }
+    : undefined
+  const wireValue = record?.protocol === 'clarify.wire/1' && record.ok === true
+    ? record.value
+    : undefined
+  const message = String(input.message ?? wireError?.message ?? '')
+  const code = String(input.code ?? wireError?.code ?? '')
+  const processId = input.processId
+    ?? record?.processId
+    ?? (wireValue && typeof wireValue === 'object' ? (wireValue as { processId?: unknown }).processId : undefined)
   if (
     code === 'invocation-unavailable'
     || code === 'definition-unavailable'
@@ -428,11 +457,8 @@ function classifyArrival(input: { message?: string; code?: string; value?: unkno
     || code === 'SESSION_ID_REQUIRED'
     || code === 'INVALID_ANSWER'
     || /PROCESS_NOT_FOUND|PROCESS_BUSY|SESSION_ID_REQUIRED|INVALID_ANSWER|process .+ does not exist|sessionId is required|session .+ is not available|already inferring/i.test(message)
-    || typeof input.processId === 'string'
+    || typeof processId === 'string'
   ) {
-    return { kind: 'business' }
-  }
-  if (input.value && typeof input.value === 'object' && typeof (input.value as { processId?: unknown }).processId === 'string') {
     return { kind: 'business' }
   }
   return { kind: 'none' }
@@ -487,7 +513,7 @@ function snapshotSession(ctx: ProbeContext, session: {
   events?: unknown[]
   deriveMessages?: () => unknown[]
   surface?: { nodes?: unknown[] }
-}): { eventCount: number; derivedCount: number; surfaceCount: number; usage: unknown } {
+}): { eventCount: number; derivedCount: number; surfaceCount: number; usage: unknown; usageProjection: unknown } {
   let usage: unknown
   try {
     const tokenMeter = peekValue(ctx, 'tokenMeter') as ProbeContext['tokenMeter'] | undefined
@@ -496,11 +522,25 @@ function snapshotSession(ctx: ProbeContext, session: {
   } catch (error) {
     usage = { error: errorMessage(error) }
   }
+  let usageProjection: unknown
+  try {
+    const projections = peekValue(ctx, 'sessionProjections') as ProbeContext['sessionProjections'] | undefined
+    const snapshot = projections?.snapshot?.(session)
+    const values = snapshot && typeof snapshot === 'object'
+      ? (snapshot as { values?: unknown }).values
+      : undefined
+    usageProjection = values && typeof values === 'object'
+      ? (values as { tokenUsage?: unknown }).tokenUsage
+      : undefined
+  } catch (error) {
+    usageProjection = { error: errorMessage(error) }
+  }
   return {
     eventCount: Array.isArray(session.events) ? session.events.length : -1,
     derivedCount: Array.isArray(session.deriveMessages?.()) ? session.deriveMessages()!.length : -1,
     surfaceCount: Array.isArray(session.surface?.nodes) ? session.surface!.nodes!.length : -1,
     usage,
+    usageProjection,
   }
 }
 
