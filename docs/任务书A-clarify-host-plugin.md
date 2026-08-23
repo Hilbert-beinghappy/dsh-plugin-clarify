@@ -42,7 +42,7 @@
 - `processId`、`sessionId`、`contextVersion`、`modelRouteId`
 - question、options、`multiple`、`allowCustom`、最终 draft 文本
 - 状态：running / cancelled / stale / complete
-- 用量与错误走既有 Harness 通道
+- 用量与错误走既有通道：官方 `tokenUsage` 只归 Agent；Clarify 辅助用量只在 Auxiliary Runtime 私有 `auxiliary_runtime` ledger
 
 ## 5. 架构：为什么是 Host 插件，谁拥有什么
 
@@ -52,7 +52,7 @@
 
 1. **注入 Harness LLM router**：以当前 Session 的 `modelRouteId` 发起一次**脱离 transcript、禁用工具**的补全（off-transcript, no-tools completion）。
 2. **注入 Session 上下文读取器**：只读地获取当前 Session 上下文与其修订标识（`contextVersion`）。
-3. **注入 usage / limits / cancel**：把本进程的推理消耗记入 Harness 既有用量通道，受既有限额约束，并可被 Harness 取消。
+3. **注入 usage / limits / cancel**：消费官方限额与取消通道；官方 `tokenUsage` 仍只表示 Agent 循环。Clarify 辅助消耗只进入 Auxiliary Runtime 私有 `auxiliary_runtime` ledger，不得另建计量或写入 Session 用量。
 4. **注册一个 Remote**：让任意 Surface（官方 Web、SeekTTY、未来的壳）通过统一 RPC 面调用 start / answer / accept / refine / cancel / fetch draft。
 
 Agent 插件跑的是常规 Agent 循环（违反契约"不得运行常规 Agent 循环"）；Skill 走 transcript（违反"不得创建正式消息"）；工具插件由 Agent 调用（方向反了，这里是 Surface 调用插件）。因此结论固定为 Host 插件。
@@ -163,9 +163,9 @@ draft 是纯用户草稿文本。它不是助手回复、不是计划、不含�
 
 ### 6.7 用量归属
 
-每次补全的 token 消耗经 Harness 既有 usage 通道记入绑定 Session 的用量，并以 Harness 支持的来源标注方式标记为本插件进程所产生（若当前 dsh 的 usage 通道不支持来源标注，如实记入 Session 用量即可，并在兼容性说明中记录该限制）。不新建任何计量体系。
+官方 Agent 循环的 `tokenUsage` 是权威用量面。Clarify 的辅助推理消耗不得改写或记入官方 Session `tokenUsage`，只允许出现在 Auxiliary Runtime 私有 `auxiliary_runtime` ledger。Clarify 不新建、不投影、不改写官方计量体系。若公开读缝不存在，T6/T7 只记录 unavailable，不得编造相等或 hash。
 
-> 6.7 用量 / accounting：本条原文保持不变。A2 协议切片中 usage / accounting 仍待定，不在本切片改写或验收。
+> 6.7 已按现行生产组成更正：官方 `tokenUsage` 只归 Agent；Clarify 辅助用量只在 Auxiliary Runtime 私有 `auxiliary_runtime` ledger。
 
 ### 6.8 模型 DATA、draftPreview、错误与重试
 
@@ -208,7 +208,7 @@ draft 是纯用户草稿文本。它不是助手回复、不是计划、不含�
 | T3 | Remote 落地六接口（仍用桩推理），含错误与状态回显 | 用脚本客户端解包 `clarify.wire/1` 后跑 start → answer×N → refine → accept → fetch draft，以及 ask 上的 accept；对 stale / cancelled 进程调 answer / refine 得到正确内层拒绝 |
 | T4 | 接入真实 Harness router：澄清式提问的 prompt 策略与 draft 生成；严格 off-transcript、no-tools | 真实补全一轮后，dump Session transcript 与前后逐字节比对，零差异；确认无工具调用记录 |
 | T5 | stale 侦测：订阅 Session 切换、路由变化、新正式消息、compaction、recall 注入，逐项翻转 stale | 逐事件触发并断言状态与 `staleReason`；stale 后 fetch draft 拿不到 draft |
-| T6 | usage / limits / cancel / 错误全量走 Harness 通道 | 补全消耗出现在 Session 用量中；触发限额时进程得到 Harness 错误并终止；cancel 中断进行中的补全 |
+| T6 | usage / limits / cancel / 错误全量走既有通道 | 官方 Agent `tokenUsage` 保持权威且不被 Clarify 改写；Clarify 辅助消耗只出现在 Auxiliary Runtime 私有 `auxiliary_runtime` ledger；触发限额时进程得到既有错误并终止；cancel 中断进行中的补全 |
 | T7 | Web-only 验收：stock Web 或 Host DIY 页面完成完整回合 | 无 SeekTTY 环境下，人工走完澄清 → draft → 手动粘入 Web composer → 常规发送 |
 | T8 | 固化第 11 节测试计划为可重跑脚本，记录兼容基线 | 单命令重跑全绿；README 级文档写明精确 dsh 范围 |
 
@@ -220,7 +220,7 @@ draft 是纯用户草稿文本。它不是助手回复、不是计划、不含�
 2. **transcript 零污染**：任意完整回合前后，Session transcript、input queue、pending、Plan、Goal、分支列表逐项比对无变化。
 3. **stale 全事件**：Session 切换、`modelRouteId` 变化、新正式消息、compaction、recall 注入、TTL 到期，六种触发各自产生正确的 `staleReason`，且 stale 结果无法被继续消费。
 4. **cancel**：交互中 cancel、补全进行中 cancel、重复 cancel，均到达终态且 Harness 侧请求被中断。
-5. **usage / limits**：消耗记入 Session 用量；限额触发时得到 Harness 标准错误。
+5. **usage / limits**：官方 Agent `tokenUsage` 是权威面；Clarify 辅助用量只在 Auxiliary Runtime 私有 `auxiliary_runtime` ledger。限额触发时得到既有标准错误。不得把无 key / mock 写成已把消耗记入 Session 用量。
 6. **错误**：路由不可用、上下文读取失败等，源点抛带 `category` 的 `ClarifyError`；Remote 包装为内层 `clarify.wire/1`。外层 Gateway / 载体中止仍走 Harness 通道，不得用 code/message 反推 category。
 7. **Web-only**：不安装 SeekTTY 完成完整回合（对应 T7）。
 8. **无自动发送**：全套测试中断言从未出现由插件发起的 `session.prompt` 或等价提交。
@@ -229,7 +229,7 @@ draft 是纯用户草稿文本。它不是助手回复、不是计划、不含�
 
 - **头号阻塞**：dsh 可能不存在 off-transcript、no-tools 补全通道。对策已定：T0 探针 + 阻塞报告，禁止隐藏 Session 与"发了再藏"两种绕法（被明确拒绝的替代方案）。
 - **`contextVersion` 无单一官方修订号**：降级为模型可见 system / tools / derived messages 的稳定规范化指纹（6.1 已定）；若公开字段不足以覆盖这些输入则阻塞，不得退化为 `session.seq` 或 transcript-only hash。
-- **usage 通道不支持来源标注**：如实记入 Session 用量并记录限制（6.7 已定）。
+- **官方 tokenUsage 不接收 Clarify 辅助用量**：如实保持官方 Agent `tokenUsage` 权威，辅助用量只在 `auxiliary_runtime` ledger（6.7 已定）。
 - **stock Web 无 UI 挂载点**：Host DIY 页面兜底（第 8 节已定）。
 - **Host 重启丢状态**：设计上等价全体 cancel，可接受（第 7 节已定）。
 

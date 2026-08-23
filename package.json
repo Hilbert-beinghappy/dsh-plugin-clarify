@@ -55,6 +55,10 @@
     "t1": "node scripts/t1-lifecycle.mjs",
     "t1:matrix": "node scripts/t0-matrix.mjs t1",
     "t3": "node scripts/t3-e2e.mjs",
+    "t7": "node scripts/t7-lab.mjs",
+    "t7:validate": "node scripts/t7-lab.mjs --validate",
+    "t7:from-pack": "node scripts/t7-lab.mjs --from-pack",
+    "t7:from-release": "node scripts/t7-lab.mjs --from-release --require-local-assets --clarify-release 0.2.2 --auxiliary-release 0.1.1",
     "sanitize:appledouble": "node scripts/remove-appledouble.mjs",
     "prepack": "pnpm run build"
   },

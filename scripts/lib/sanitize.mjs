@@ -39,3 +39,59 @@ export function publicOrigin(origin) {
   const match = origin.match(/^https?:\/\/(?:127\.0\.0\.1|localhost):\d+$/)
   return match ? origin.replace(/:\d+$/, ':<ephemeral>') : '<redacted-origin>'
 }
+
+export const T7_FORBIDDEN_KEYS = new Set([
+  'sessionId',
+  'prompt',
+  'seed',
+  'seedText',
+  'answer',
+  'customText',
+  'draft',
+  'draftPreview',
+  'refine',
+  'refineFeedback',
+  'feedback',
+  'provider',
+  'model',
+  'modelRouteId',
+  'path',
+  'credential',
+  'apiKey',
+  'profile',
+  'profileId',
+  'token',
+  'password',
+  'authorization',
+  'uncachedInputTokens',
+  'outputTokens',
+  'cacheReadTokens',
+  'cacheWriteTokens',
+  'totalTokens',
+  'inputTokens',
+  'message',
+  'html',
+  'dump',
+  'dumpText',
+])
+
+export function sanitizeT7(value) {
+  return sanitize(stripT7Keys(value))
+}
+
+const T7_COARSE_STATUS = new Set(['succeeded', 'failed', 'unavailable', 'unchanged', 'changed', 'observed'])
+
+function stripT7Keys(value) {
+  if (Array.isArray(value)) return value.map(stripT7Keys)
+  if (value && typeof value === 'object') {
+    const out = {}
+    for (const [key, nested] of Object.entries(value)) {
+      const forbidden = T7_FORBIDDEN_KEYS.has(key)
+        || /sessionId|seedText|draftPreview|apiKey|totalTokens|uncachedInputTokens|outputTokens|cacheReadTokens|cacheWriteTokens/i.test(key)
+      if (forbidden && !T7_COARSE_STATUS.has(nested) && typeof nested !== 'boolean') continue
+      out[key] = stripT7Keys(nested)
+    }
+    return out
+  }
+  return value
+}
