@@ -12,8 +12,10 @@ import {
   applyDiyJourneyEvent,
   applyDiyJourneySequence,
   armOfficialSendGate,
+  assertLiveRouteCredential,
   canAdvanceDiyJourney,
   classifyLiveEndpoint,
+  classifyRouteCredential,
   classifyStartPreflight,
   comparePastedComposer,
   createDiyJourneyMachine,
@@ -34,6 +36,7 @@ import {
   officialPasteShortcut,
   parseT7LiveArgs,
   planLiveRun,
+  planRouteDispatch,
   requireManualPasteProof,
   resolveLiveAssets,
   runT7Live,
@@ -198,6 +201,126 @@ describe('t7-live credential presence', () => {
       callProvider: true,
       block: null,
     })
+  })
+})
+
+describe('t7-live route-aware credential preflight', () => {
+  it('matches a known route when the corresponding env is present and returns only coarse fields', () => {
+    const dump = agentDefaultModelDump('deepseek-official')
+    const classified = classifyRouteCredential(dump, { DEEPSEEK_API_KEY: 'x', OPENAI_API_KEY: 'y' })
+    expect(classified).toEqual({ ok: true })
+    expect(Object.keys(classified)).toEqual(['ok'])
+    expectSafeRouteResult(classified, dump)
+    expect(assertLiveRouteCredential(dump, { DEEPSEEK_API_KEY: 'x' })).toEqual({ ok: true })
+    expect(planRouteDispatch(classified)).toEqual({
+      launchBrowser: true,
+      bootHost: true,
+      callProvider: true,
+      block: null,
+    })
+    expectSafeRouteResult(planRouteDispatch(classified), dump)
+    expect(classifyRouteCredential(agentDefaultModelDump('openai'), { OPENAI_API_KEY: 'x' })).toEqual({ ok: true })
+  })
+
+  it('blocks an unrelated present key as ROUTE_CREDENTIAL_MISMATCH without dispatch', () => {
+    const dump = decoyDump('deepseek-official')
+    const classified = classifyRouteCredential(dump, { OPENAI_API_KEY: 'sk-unrelated', DEEPSEEK_API_KEY: '' })
+    expect(classified).toEqual({
+      ok: false,
+      code: 'ROUTE_CREDENTIAL_MISMATCH',
+      category: 'preflight',
+    })
+    expect(Object.keys(classified).sort()).toEqual(['category', 'code', 'ok'])
+    expectSafeRouteResult(classified, dump)
+    expect(() => assertLiveRouteCredential(dump, { OPENAI_API_KEY: 'sk-unrelated' })).toThrow(LiveBlock)
+    try {
+      assertLiveRouteCredential(dump, { OPENAI_API_KEY: 'sk-unrelated' })
+    } catch (error) {
+      expect(error).toMatchObject({ code: 'ROUTE_CREDENTIAL_MISMATCH', category: 'preflight' })
+      expect(error.message).toBe('ROUTE_CREDENTIAL_MISMATCH preflight')
+      expectSafeRouteResult(error, dump)
+    }
+    expect(planRouteDispatch(classified)).toEqual({
+      launchBrowser: false,
+      bootHost: false,
+      callProvider: false,
+      block: { code: 'ROUTE_CREDENTIAL_MISMATCH', category: 'preflight' },
+    })
+  })
+
+  it('returns UNKNOWN for unknown, missing, duplicate, and non-config provider lines', () => {
+    const unknown = classifyRouteCredential(agentDefaultModelDump('deepseek'), { DEEPSEEK_API_KEY: 'x' })
+    const missing = classifyRouteCredential('# == dsh-plugin-clarify\n- id: clarify\n  name: dsh-plugin-clarify\n', {
+      OPENAI_API_KEY: 'x',
+    })
+    const empty = classifyRouteCredential('', { OPENAI_API_KEY: 'x' })
+    const noNested = classifyRouteCredential([
+      '- id: agent-default-model',
+      '  provider: deepseek-official',
+      '  searchProvider: deepseek-official',
+    ].join('\n'), { DEEPSEEK_API_KEY: 'x' })
+    const searchOnly = classifyRouteCredential([
+      '- id: agent-default-model',
+      '  config:',
+      '    searchProvider: deepseek-official',
+      '    model: deepseek-v4-flash',
+    ].join('\n'), { DEEPSEEK_API_KEY: 'x' })
+    const nestedOther = classifyRouteCredential([
+      '- id: agent-default-model',
+      '  config:',
+      '    extra:',
+      '      provider: openai',
+    ].join('\n'), { OPENAI_API_KEY: 'x' })
+    const duplicate = classifyRouteCredential(
+      `${agentDefaultModelDump('deepseek-official')}\n${agentDefaultModelDump('openai')}`,
+      { DEEPSEEK_API_KEY: 'x', OPENAI_API_KEY: 'x' },
+    )
+    const elsewhere = classifyRouteCredential([
+      '- id: llm',
+      '  config:',
+      '    provider: openai',
+      '- id: other',
+      '  provider: deepseek-official',
+    ].join('\n'), { OPENAI_API_KEY: 'x' })
+    for (const classified of [unknown, missing, empty, noNested, searchOnly, nestedOther, duplicate, elsewhere]) {
+      expect(classified).toEqual({
+        ok: false,
+        code: 'ROUTE_CREDENTIAL_UNKNOWN',
+        category: 'preflight',
+      })
+      expectSafeRouteResult(classified)
+      expect(planRouteDispatch(classified)).toEqual({
+        launchBrowser: false,
+        bootHost: false,
+        callProvider: false,
+        block: { code: 'ROUTE_CREDENTIAL_UNKNOWN', category: 'preflight' },
+      })
+    }
+  })
+
+  it('accepts whitespace, quotes, and CRLF around the nested config.provider', () => {
+    const crlf = [
+      '# == @deepseek-ai/dsh-agent-default-model',
+      '- id:   "agent-default-model"  ',
+      '  config:',
+      '    searchProvider: openai',
+      '    provider:   \'deepseek-official\'  ',
+      '',
+    ].join('\r\n')
+    expect(classifyRouteCredential(crlf, { DEEPSEEK_API_KEY: 'x' })).toEqual({ ok: true })
+    expect(classifyRouteCredential(crlf, { OPENAI_API_KEY: 'x' })).toEqual({
+      ok: false,
+      code: 'ROUTE_CREDENTIAL_MISMATCH',
+      category: 'preflight',
+    })
+    const spaced = [
+      '- name: demo',
+      '  id: agent-default-model',
+      '  config:',
+      '    provider: openai',
+    ].join('\n')
+    expect(classifyRouteCredential(spaced, { OPENAI_API_KEY: 'x' })).toEqual({ ok: true })
+    expectSafeRouteResult(classifyRouteCredential(crlf, { DEEPSEEK_API_KEY: 'x' }), crlf)
   })
 })
 
@@ -617,5 +740,54 @@ describe('t7-live source and package contract', () => {
     expect(liveSource.lastIndexOf('armOfficialSendGate')).toBeGreaterThan(liveSource.indexOf("new URL('/', origin)"))
     expect(liveSource).not.toMatch(/return \{[^}]*(clipboardText|composerText)/)
     expect(liveSource).not.toMatch(/console\.[a-z]+\([^)]*ambiguousLiveSeed/)
+    expect(liveSource.split("'--dump-config'")).toHaveLength(2)
+    expect(liveSource.indexOf("'--dump-config'")).toBeLessThan(liveSource.lastIndexOf('assertLiveRouteCredential'))
+    expect(liveSource.lastIndexOf('assertLiveRouteCredential')).toBeLessThan(liveSource.lastIndexOf('spawnDsh('))
+    expect(liveSource.lastIndexOf('spawnDsh(')).toBeLessThan(liveSource.lastIndexOf('withChromium('))
+    expect(liveSource.lastIndexOf('withChromium(')).toBeLessThan(liveSource.indexOf("'#start'"))
+    expect(liveSource).toMatch(/assertLiveRouteCredential\(dumpText/)
   })
 })
+
+function agentDefaultModelDump(provider: string) {
+  return [
+    '# == @deepseek-ai/dsh-agent-default-model',
+    '- id: agent-default-model',
+    "  name: '@deepseek-ai/dsh-agent-default-model'",
+    '  config:',
+    `    provider: ${provider}`,
+    '    model: deepseek-v4-flash',
+    '    searchProvider: deepseek-official',
+  ].join('\n')
+}
+
+function decoyDump(provider: string) {
+  return [
+    '# == @deepseek-ai/dsh-llm-pi-ai',
+    '- id: llm',
+    '  config:',
+    '    provider: openai',
+    '    searchProvider: openai',
+    agentDefaultModelDump(provider),
+    '- id: other',
+    '  provider: openai',
+  ].join('\n')
+}
+
+function expectSafeRouteResult(value: unknown, dump?: string) {
+  const serialized = `${JSON.stringify(value)}\n${value instanceof Error ? value.message : String(value)}`
+  expect(serialized).not.toMatch(/deepseek-official|deepseek-v4-flash|# ==/i)
+  expect(serialized).not.toMatch(/OPENAI_API_KEY|DEEPSEEK_API_KEY|sk-unrelated|sk-secret/)
+  expect(serialized).not.toMatch(/"provider"|"model"|"searchProvider"|"dump"|"env"/)
+  if (dump) expect(serialized).not.toContain(dump)
+  if (value && typeof value === 'object' && !(value instanceof Error)) {
+    for (const key of Object.keys(value)) {
+      expect(['ok', 'code', 'category', 'launchBrowser', 'bootHost', 'callProvider', 'block']).toContain(key)
+    }
+    expect(value).not.toHaveProperty('provider')
+    expect(value).not.toHaveProperty('model')
+    expect(value).not.toHaveProperty('env')
+    expect(value).not.toHaveProperty('dump')
+    expect(value).not.toHaveProperty('value')
+  }
+}

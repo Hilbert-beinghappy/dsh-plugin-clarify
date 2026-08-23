@@ -120,6 +120,47 @@ export function planLiveRun({ presence } = {}) {
   }
 }
 
+export function classifyRouteCredential(dumpText, env = {}) {
+  const providerId = readAgentDefaultModelProvider(dumpText)
+  const required = providerId ? OFFICIAL_ROUTE_ENV[providerId] : undefined
+  if (!required) {
+    return { ok: false, code: 'ROUTE_CREDENTIAL_UNKNOWN', category: 'preflight' }
+  }
+  const raw = env[required]
+  if (typeof raw !== 'string' || raw.length === 0) {
+    return { ok: false, code: 'ROUTE_CREDENTIAL_MISMATCH', category: 'preflight' }
+  }
+  return { ok: true }
+}
+
+export function assertLiveRouteCredential(dumpText, env = {}) {
+  const classified = classifyRouteCredential(dumpText, env)
+  if (classified.ok !== true) {
+    throw new LiveBlock(classified.code, classified.category)
+  }
+  return classified
+}
+
+export function planRouteDispatch(classified = {}) {
+  if (classified.ok === true) {
+    return {
+      launchBrowser: true,
+      bootHost: true,
+      callProvider: true,
+      block: null,
+    }
+  }
+  return {
+    launchBrowser: false,
+    bootHost: false,
+    callProvider: false,
+    block: {
+      code: classified.code === 'ROUTE_CREDENTIAL_MISMATCH' ? 'ROUTE_CREDENTIAL_MISMATCH' : 'ROUTE_CREDENTIAL_UNKNOWN',
+      category: 'preflight',
+    },
+  }
+}
+
 export function classifyStartPreflight(event = {}) {
   if (event.ok === true && event.status === 'running' && (event.kind === 'ask' || event.kind === 'await_accept')) {
     if (event.kind === 'ask' && event.hasQuestion !== true) {
@@ -510,10 +551,12 @@ async function executeLive(parsed, asset, env) {
   } catch {
     throw new LiveBlock('HOST_BOOT', 'environment')
   }
-  const seekTty = observeSeekTtyInstalled(runDsh(dshBin, ['--profile', 'web', '--dump-config'], hostEnv))
+  const dumpText = runDsh(dshBin, ['--profile', 'web', '--dump-config'], hostEnv)
+  const seekTty = observeSeekTtyInstalled(dumpText)
   if (seekTty.proven !== true || seekTty.installed !== false) {
     throw new LiveBlock('SEEKTTY', 'environment')
   }
+  assertLiveRouteCredential(dumpText, env)
   const child = spawnDsh(dshBin, ['--profile', 'web', '--port', '0', '--no-open'], hostEnv)
   let bootOutput = ''
   child.stdout.on('data', (chunk) => { bootOutput += String(chunk) })
@@ -887,8 +930,136 @@ function stripLiveOnlyKeys(value) {
   return value
 }
 
+const OFFICIAL_ROUTE_ENV = Object.freeze({
+  'deepseek-official': 'DEEPSEEK_API_KEY',
+  openai: 'OPENAI_API_KEY',
+})
+
 function providerKeyNames() {
   return PROVIDER_KEY_VENDORS.map((vendor) => `${vendor}_API_KEY`)
+}
+
+function readAgentDefaultModelProvider(dumpText) {
+  const items = yamlLikeListItems(dumpText)
+  const matches = []
+  for (const item of items) {
+    const entries = yamlLikeItemEntries(item)
+    const ids = entries.filter((entry) => entry.key === 'id').map((entry) => yamlLikeScalar(entry.value))
+    if (ids.length === 1 && ids[0] === 'agent-default-model') matches.push(entries)
+  }
+  if (matches.length !== 1) return undefined
+  const configs = matches[0].filter((entry) => entry.key === 'config')
+  if (configs.length !== 1) return undefined
+  const providers = yamlLikeMappingValues(configs[0], 'provider')
+  if (providers.length !== 1 || providers[0] === '') return undefined
+  return providers[0]
+}
+
+function yamlLikeListItems(dumpText) {
+  const lines = normalizeDumpLines(dumpText)
+  const items = []
+  let index = 0
+  while (index < lines.length) {
+    const line = lines[index]
+    const start = line.match(/^([ \t]*)-\s+(.*)$/)
+    if (!start) {
+      index += 1
+      continue
+    }
+    const dashIndent = start[1].length
+    const body = [start[2]]
+    index += 1
+    while (index < lines.length) {
+      const next = lines[index]
+      if (next.trim() === '') {
+        body.push('')
+        index += 1
+        continue
+      }
+      if (lineIndent(next) <= dashIndent) break
+      body.push(next)
+      index += 1
+    }
+    items.push(body)
+  }
+  return items
+}
+
+function yamlLikeItemEntries(body) {
+  const entries = []
+  const first = yamlLikeKeyValue(String(body[0] ?? '').trim())
+  if (first) entries.push({ key: first.key, value: first.value, nested: [] })
+  let childIndent
+  for (const line of body.slice(1)) {
+    if (line.trim() === '' || isYamlLikeComment(line)) continue
+    childIndent = lineIndent(line)
+    break
+  }
+  if (childIndent === undefined) return entries
+  let current
+  for (const line of body.slice(1)) {
+    if (line.trim() === '' || isYamlLikeComment(line)) {
+      if (current) current.nested.push(line)
+      continue
+    }
+    const indent = lineIndent(line)
+    if (indent === childIndent) {
+      const pair = yamlLikeKeyValue(line.trim())
+      current = pair ? { key: pair.key, value: pair.value, nested: [] } : undefined
+      if (current) entries.push(current)
+      continue
+    }
+    if (indent > childIndent && current) current.nested.push(line)
+    else current = undefined
+  }
+  return entries
+}
+
+function yamlLikeMappingValues(entry, key) {
+  if (yamlLikeScalar(entry?.value) !== '') return []
+  let childIndent
+  for (const line of entry.nested ?? []) {
+    if (line.trim() === '' || isYamlLikeComment(line)) continue
+    childIndent = lineIndent(line)
+    break
+  }
+  if (childIndent === undefined) return []
+  const values = []
+  for (const line of entry.nested) {
+    if (line.trim() === '' || isYamlLikeComment(line) || lineIndent(line) !== childIndent) continue
+    const pair = yamlLikeKeyValue(line.trim())
+    if (pair?.key === key) values.push(yamlLikeScalar(pair.value))
+  }
+  return values
+}
+
+function yamlLikeKeyValue(content) {
+  const match = String(content ?? '').match(/^([A-Za-z0-9_-]+):\s*(.*)$/)
+  if (!match) return undefined
+  return { key: match[1], value: match[2] }
+}
+
+function yamlLikeScalar(raw) {
+  let value = String(raw ?? '').trim()
+  if (
+    value.length >= 2
+    && ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'")))
+  ) {
+    value = value.slice(1, -1)
+  }
+  return value.trim()
+}
+
+function normalizeDumpLines(dumpText) {
+  return String(dumpText ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+}
+
+function lineIndent(line) {
+  return (/^[ \t]*/.exec(line) ?? [''])[0].length
+}
+
+function isYamlLikeComment(line) {
+  return /^\s*#/.test(line)
 }
 
 function classifyArgvError(error) {
