@@ -21,7 +21,7 @@ describe('published package contract', () => {
     dshPlugin?: { testedHost?: string; testedHosts?: string[] }
   }
 
-  it('is the unreleased 0.2.2 package named dsh-plugin-clarify', () => {
+  it('is the published 0.2.2 package named dsh-plugin-clarify', () => {
     expect(pkg.name).toBe('dsh-plugin-clarify')
     expect(pkg.version).toBe('0.2.2')
     expect(pkg.dsh?.host).toBeUndefined()
@@ -86,12 +86,22 @@ describe('published package contract', () => {
     expect(ci).not.toMatch(/node-version: '24'/)
   })
 
-  it('keeps repository instructions aligned with the unreleased package and contract pins', () => {
+  it('keeps repository instructions aligned with published 0.2.2 and the older recommended rollback', () => {
     const instructions = readFileSync(join(root, 'AGENTS.md'), 'utf8')
-    expect(instructions).toContain('当前未发布目标 `0.2.2`')
+    expect(instructions).toMatch(/已发布 `0\.1\.0`、`0\.2\.0`、`0\.2\.1` 与 `0\.2\.2`/)
+    expect(instructions).toContain('不是推荐联合基线')
+    expect(instructions).toContain('Host `0.1.0-rc.8` + Clarify `0.2.1` + Auxiliary `0.1.0` + SeekTTY `1.2.0`')
     expect(instructions).toContain('pinned rc.6 + rc.7 + rc.8 + 0.1.1-rc.2 + 动态 latest')
     expect(instructions).toContain('`0.1.1-rc.1` 只保留为历史复现，不是生产 pin')
-    expect(instructions).not.toContain('当前未发布目标 `0.2.1`')
+    expect(instructions).not.toMatch(/当前未发布目标 `0\.2\.2`/)
+    expect(instructions).not.toMatch(/未发布目标 `0\.2\.2`/)
+  })
+
+  it('exposes T7 validate plus from-pack and from-release harness scripts', () => {
+    expect(pkg.scripts?.t7).toBe('node scripts/t7-lab.mjs')
+    expect(pkg.scripts?.['t7:validate']).toBe('node scripts/t7-lab.mjs --validate')
+    expect(pkg.scripts?.['t7:from-pack']).toBe('node scripts/t7-lab.mjs --from-pack')
+    expect(pkg.scripts?.['t7:from-release']).toBe('node scripts/t7-lab.mjs --from-release --require-local-assets --clarify-release 0.2.2 --auxiliary-release 0.1.1')
   })
 
   it('rejects AppleDouble and Finder metadata pack entries without shipping the helper', () => {

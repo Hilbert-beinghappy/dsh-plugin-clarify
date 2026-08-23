@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { publicOrigin, sanitizeText } from '../scripts/lib/sanitize.mjs'
+import { publicOrigin, sanitizeT7, sanitizeText } from '../scripts/lib/sanitize.mjs'
 
 describe('public evidence sanitizer', () => {
   it('removes local absolute and file: paths', () => {
@@ -39,5 +39,62 @@ describe('public evidence sanitizer', () => {
   it('publishes only loopback origin shape', () => {
     expect(publicOrigin('http://127.0.0.1:60358')).toBe('http://127.0.0.1:<ephemeral>')
     expect(publicOrigin('https://example.internal')).toBe('<redacted-origin>')
+  })
+
+  it('strips T7 tracked secrets instead of leaving raw usage or session payload', () => {
+    const cleaned = sanitizeT7({
+      sessionId: 'sess-live-1',
+      seedText: 'need a draft about logout',
+      answer: 'pick the safest option',
+      draft: 'Please implement logout.',
+      refineFeedback: 'shorter',
+      provider: 'openai',
+      model: 'secret-model',
+      path: '/Users/huangjiawei/.dsh/profile.json',
+      credential: 'sk-live-secret',
+      apiKey: 'sk-abc',
+      profile: { name: 'tui' },
+      totalTokens: 41,
+      uncachedInputTokens: 12,
+      outputTokens: 29,
+      gate: 'G0',
+      officialUsageBand: 'zero',
+    })
+    expect(cleaned).not.toHaveProperty('sessionId')
+    expect(cleaned).not.toHaveProperty('seedText')
+    expect(cleaned).not.toHaveProperty('answer')
+    expect(cleaned).not.toHaveProperty('draft')
+    expect(cleaned).not.toHaveProperty('refineFeedback')
+    expect(cleaned).not.toHaveProperty('provider')
+    expect(cleaned).not.toHaveProperty('model')
+    expect(cleaned).not.toHaveProperty('path')
+    expect(cleaned).not.toHaveProperty('credential')
+    expect(cleaned).not.toHaveProperty('apiKey')
+    expect(cleaned).not.toHaveProperty('profile')
+    expect(cleaned).not.toHaveProperty('totalTokens')
+    expect(cleaned).not.toHaveProperty('uncachedInputTokens')
+    expect(cleaned).not.toHaveProperty('outputTokens')
+    expect(cleaned.gate).toBe('G0')
+    expect(cleaned.officialUsageBand).toBe('zero')
+    expect(JSON.stringify(cleaned)).not.toMatch(/sess-live-1|logout|openai|sk-live-secret|41/)
+    expect(sanitizeT7({
+      diyJourney: { methods: { answer: 'succeeded', refine: 'succeeded' } },
+    })).toEqual({
+      diyJourney: { methods: { answer: 'succeeded', refine: 'succeeded' } },
+    })
+    expect(sanitizeT7({
+      diy: { methods: { answer: true, refine: true } },
+    })).toEqual({
+      diy: { methods: { answer: true, refine: true } },
+    })
+    expect(sanitizeT7({
+      start: { message: 'auxiliary model call did not succeed (ENOTSUP)' },
+      html: '<!doctype html>',
+      dump: '# == seektty',
+      diy: { methods: { refine: 'please leak the draft' } },
+    })).toEqual({
+      start: {},
+      diy: { methods: {} },
+    })
   })
 })

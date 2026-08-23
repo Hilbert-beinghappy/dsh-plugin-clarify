@@ -88,7 +88,7 @@ Plan 处理“需求已经明确、需要决定怎么做”的阶段：Harness �
 
 ### 在 SeekTTY 中
 
-兼容的 Clarify 六方法 Remote 与 `clarify.wire/1` 激活后，SeekTTY 会把 `/clarify` 加入本地命令目录。当前未发布目标是 `0.2.2`；已发布回滚工件仍是 `0.2.1` / `0.2.0`。
+兼容的 Clarify 六方法 Remote 与 `clarify.wire/1` 激活后，SeekTTY 会把 `/clarify` 加入本地命令目录。`0.2.2` 已发布（tgz + SHA256SUMS），但不是推荐联合基线；已发布回滚工件仍是 `0.2.1` / `0.2.0`。
 
 - 从命令面板执行：保留整个输入区作为 seed。
 - 输入 `/clarify some text`：以参数文本作为 seed。
@@ -152,20 +152,19 @@ dsh plugin --profile tui remove dsh-plugin-clarify
 dsh plugin --profile tui add https://github.com/Hilbert-beinghappy/dsh-plugin-clarify/releases/download/v0.2.1/dsh-plugin-clarify-0.2.1.tgz
 ```
 
-### 未发布新目标 `0.2.2`
+### 已发布 `0.2.2`（非推荐联合基线）
 
-`0.2.2` 的生产目标是精确 Host `0.1.1-rc.2` + Auxiliary Runtime `0.1.1`。`0.1.0-rc.8` 仍作为 admission pin，可配 Auxiliary `0.1.0` 或 `0.1.1`。这不是已发布 Release，也不是完整联合验收。Lane A 无 key 真实 PTY 已观察；Lane B 于 2026-08-22 在 `candidate4` 上已观察，详见 [接口与兼容](#接口与兼容)。`docs/t0-evidence/0.1.1-rc.1/` 是同日被替换版本的历史观察，不能代替 `0.1.1-rc.2`。
+Clarify `0.2.2` 已发布 GitHub Release（tgz + SHA256SUMS），并在精确 stock `@deepseek-ai/dsh@0.1.1-rc.2`、无 SeekTTY 下做过校验和核验。证据见 `docs/t7-evidence/0.1.1-rc.2/`。Auxiliary Runtime `0.1.1` 也已发布。这不是新的推荐联合基线，也不是完整 T7 / 完整联合验收；推荐回滚仍见上一节。
 
-安装顺序：先在 Auxiliary Runtime 源码树 `pnpm pack` 得到 `dsh-plugin-auxiliary-runtime-0.1.1.tgz`（尚无 `v0.1.1` GitHub Release 资产，不要编造下载 URL）。本仓库 `pnpm pack` **只**生成 `dsh-plugin-clarify-0.2.2.tgz`，再本地 add Clarify。
+Host DIY / Web-only 安装只添加已发布 Clarify（及如需推理的已发布 Auxiliary），不要把 SeekTTY 写进新推荐组合：
 
 ```sh
 pnpm add --global @deepseek-ai/dsh@0.1.1-rc.2
-dsh plugin --profile web add /path/to/dsh-plugin-auxiliary-runtime-0.1.1.tgz
-pnpm pack
-dsh plugin --profile web add ./dsh-plugin-clarify-0.2.2.tgz
+dsh plugin --profile web add https://github.com/Hilbert-beinghappy/dsh-plugin-auxiliary-runtime/releases/download/v0.1.1/dsh-plugin-auxiliary-runtime-0.1.1.tgz
+dsh plugin --profile web add https://github.com/Hilbert-beinghappy/dsh-plugin-clarify/releases/download/v0.2.2/dsh-plugin-clarify-0.2.2.tgz
 ```
 
-安装会按 `package.json#dsh.bundle.patch` 中的 `cordis.patch.yml` 更新目标 Profile。Cordis 子上下文让 Clarify 等待 `auxiliaryRuntime`，Auxiliary Runtime 等待官方 `storageDomain`；服务激活由依赖可用性决定，与添加命令的先后顺序解耦。
+安装会按 `package.json#dsh.bundle.patch` 中的 `cordis.patch.yml` 更新目标 Profile。Cordis 子上下文让 Clarify 等待 `auxiliaryRuntime`，Auxiliary Runtime 等待官方 `storageDomain`；服务激活由依赖可用性决定，与添加命令的先后顺序解耦。`docs/t0-evidence/0.1.1-rc.1/` 仍是同日被替换版本的历史观察，不能代替 `0.1.1-rc.2`。
 
 ## 接口与兼容
 
@@ -199,7 +198,7 @@ Content-Type: application/json
 | 栈 | 状态 | 组合 | 证据 |
 | --- | --- | --- | --- |
 | 已发布旧栈 | 已联合验收 | Host `0.1.0-rc.8` + Clarify `0.2.1` + Auxiliary `0.1.0` + SeekTTY `1.2.0` | 2026-08-21 隔离 `DSH_HOME` / 真实 PTY；`0.2.1` 无 Key 复验 add／boot／remove／re-add 与隔离 `MISSING_CREDENTIAL` |
-| 未发布新目标 `0.2.2` | Lane A 已观察；Lane B 已观察；非 Release / 非完整联合验收 | Host `0.1.1-rc.2` + Auxiliary `0.1.1` + SeekTTY `1.2.1`；rc.8 仍可配 Auxiliary `0.1.0` 或 `0.1.1` | 2026-08-21 未修改 stock rc.2、隔离 `DSH_HOME`、真实 PTY：`/doctor` 0 error / 0 warning、99 plugins running；`/status` 健康；`/clarify` 到 Auxiliary 后无 key 返回 `MISSING_CREDENTIAL` 且保留 composer；Vision-Exp 可见可选；PNG `/restart` 恢复。丢失源文件：单测仅 basename、两种通知顺序、无绝对路径；hardcopy/可见区只检出 `vision-logo.png`，未检出 `private/tmp`/`/tmp`/`Users`/`Volumes`；不能证明关 onboarding modal 后 restore error 仍显示（Esc 清 notice）。T0/T1 脚本仍是 standalone（T1 写 `/doctor` 待联调 = 脚本未跑 cross-project doctor）。Lane B（2026-08-22，未修改 stock rc.2、隔离 `DSH_HOME`、`candidate4`）：已显式选 Vision-Exp；PNG image-only 成功且发送即清附件、识别 logo，但纯图无问题导致模型又调用 `read_image`；真实 JFIF JPEG 经 SeekTTY 入队、官方 Host 正常转 PNG variant 后，无工具 OCR 成功；Clarify 经 Auxiliary 6 轮动态问答、41 行完整审阅、二次确认 accept 回 composer 且不自动发送；`/status` 有官方／辅助／组合用量；895 文件扫 secret literal 0。未证明 Web UI、GIF/WebP、超限拒绝、JPEG 原字节直通、PNG 完全不靠工具、本轮中断恢复、成本／缓存 A/B |
+| 已发布 `0.2.2` | 已发布；不是推荐联合基线；不是完整 T7 | 精确 stock Host `0.1.1-rc.2` 上校验和核验（SeekTTY 已证明未安装）；Auxiliary `0.1.1` 亦已发布 | T7 G0 **通过**：checksum-verified `--from-release` 无 key 实跑，`INFERENCE_UNAVAILABLE` + `providerFailureCode=ENOTSUP`，公开投影 unchanged。不是完整 T7，也不是新推荐联合基线。Lane A/B 仍是历史观察 |
 
 - `0.2.1` 继承 `0.2.0` 的六方法 Remote、`clarify.wire/1` 和精确 rc.8 兼容边界。`0.2.0` live-provider 联合验收覆盖动态问题／选项／preview、多轮演进、采用后只写回输入框、中断恢复、用量来源和隐私。`0.2.1` 未重跑 live-provider 动态多轮，也没有 cache／cost A/B。
 - rc.6 / rc.7 只保留历史探针车道，不是 `0.2.2` 生产组合。
@@ -222,9 +221,12 @@ pnpm t0:dsh011rc1
 pnpm t1:dsh011rc1
 pnpm t0:matrix
 pnpm t1:matrix
+pnpm t7:validate
+pnpm t7:from-pack
+pnpm t7:from-release
 ```
 
-`pnpm t0:dsh011rc2` / `pnpm t1:dsh011rc2` 是当前生产精确 lane。`pnpm t0:dsh011rc1` / `pnpm t1:dsh011rc1` 只复现同日被替换的 `0.1.1-rc.1`，不能代替 rc.2。
+`pnpm t0:dsh011rc2` / `pnpm t1:dsh011rc2` 是当前生产精确 lane。`pnpm t0:dsh011rc1` / `pnpm t1:dsh011rc1` 只复现同日被替换的 `0.1.1-rc.1`，不能代替 rc.2。`pnpm t7:validate` 核验已入库 `t7/1` 的结构与声明一致性，并报告实际分类；当前入库 G0 **通过**，但不是完整 T7。G0 是无 key 安全/遏制闸门：要求 `INFERENCE_UNAVAILABLE` 加上稳定的 provider-neutral `providerFailureCode`（本 lane 实跑为 `ENOTSUP`，不是 `MISSING_CREDENTIAL`）、未变的公开快照、已证明无 SeekTTY，以及 `/clarify` 六方法控件。`--from-pack` 不是用户价值证据。`pnpm t7:from-release` 是显式本地资产命令，必须同时提供已发布 `dsh-plugin-clarify-0.2.2.tgz` 与 `dsh-plugin-auxiliary-runtime-0.1.1.tgz` 及对应 SHA256SUMS；版本来自已知输入，文件名必须精确匹配。无 key / mock 不等于完整 T7。
 
 CI `verify` 运行测试、干净构建、打包检查和进程内冒烟。Release 前还会在三个项目的联合轨道中执行官方 Host、真实 PTY、安装、卸载和重装门禁。
 
