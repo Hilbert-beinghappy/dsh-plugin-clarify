@@ -147,6 +147,49 @@ function g0Observation(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function honestPollutionProbes() {
+  return {
+    source: 'contract',
+    window: 'clarify-only',
+    transcript: 'unavailable',
+    queue: 'unavailable',
+    pending: 'unavailable',
+    plan: 'unavailable',
+    goal: 'unavailable',
+  }
+}
+
+function forgedPublicPollutionProbes() {
+  return {
+    source: 'public',
+    transcript: 'unchanged',
+    queue: 'unchanged',
+    pending: 'unchanged',
+    plan: 'unchanged',
+    goal: 'unchanged',
+  }
+}
+
+function observedPostCallSnapshot(overrides: Record<string, unknown> = {}) {
+  return {
+    sessionCount: observedCount('many'),
+    blankTurns: observedBlankTurns(),
+    officialUsage: observedUsage(),
+    beforeOfficialSend: true,
+    ...overrides,
+  }
+}
+
+function observedPostSendSnapshot(overrides: Record<string, unknown> = {}) {
+  return {
+    sessionCount: observedCount('many'),
+    blankTurns: observedBlankTurns(false, true),
+    officialUsage: observedUsage('zero'),
+    afterOfficialSend: true,
+    ...overrides,
+  }
+}
+
 function fullJourneyObservation(overrides: Record<string, unknown> = {}) {
   return g0Observation({
     gate: 'T7',
@@ -155,6 +198,7 @@ function fullJourneyObservation(overrides: Record<string, unknown> = {}) {
     webOnlyComplete: true,
     draftManuallyPasted: true,
     userSent: true,
+    postCallSnapshot: observedPostCallSnapshot(),
     diyJourney: {
       surface: 'host-diy',
       ok: true,
@@ -170,14 +214,8 @@ function fullJourneyObservation(overrides: Record<string, unknown> = {}) {
     manualDraftTransfer: { observed: true, method: 'manual-paste', autoFilled: false },
     officialComposerSend: { observed: true, channel: 'official-web-composer' },
     cancelRecovery: { observed: true, cancelled: true, recovered: true },
-    pollutionProbes: {
-      source: 'public',
-      transcript: 'unchanged',
-      queue: 'unchanged',
-      pending: 'unchanged',
-      plan: 'unchanged',
-      goal: 'unchanged',
-    },
+    pollutionProbes: honestPollutionProbes(),
+    postSendSnapshot: observedPostSendSnapshot(),
     ...overrides,
   })
 }
@@ -297,6 +335,14 @@ describe('t7/1 schema', () => {
     })))).toBe(false)
     const full = buildT7Document(fullJourneyObservation())
     expect(isFullT7(full)).toBe(true)
+    expect(full.pollutionProbes).toEqual(honestPollutionProbes())
+    expect(full.postCallSnapshot).toMatchObject({ beforeOfficialSend: true })
+    expect(full.postSendSnapshot).toMatchObject({ afterOfficialSend: true })
+    expect(full.sendComparisons).toEqual({
+      sessionCount: 'unchanged',
+      blankTurns: 'changed',
+      officialUsage: 'unchanged',
+    })
     expect(isFullT7(buildT7Document(fullJourneyObservation({
       diyJourney: { surface: 'host-diy', ok: true, methods: { start: 'succeeded' } },
     })))).toBe(false)
@@ -947,7 +993,21 @@ describe('t7 evidence integrity adversarial', () => {
     expect(g0Report).not.toMatch(/MISSING_CREDENTIAL/)
     const fullReport = formatT7Report(buildT7Document(fullJourneyObservation()))
     expect(fullReport).toContain('| 完整 T7 | 是')
+    expect(fullReport).toContain('Web-only T7')
+    expect(fullReport).toContain('不是 T4 transcript dump')
+    expect(fullReport).toContain('不是 T5 stale')
+    expect(fullReport).toContain('不是 T6 usage/limits')
+    expect(fullReport).toContain('也不是新推荐联合基线')
+    expect(fullReport).toContain('transcript/queue/pending/plan/goal')
+    expect(fullReport).toContain('无公开读缝')
+    expect(fullReport).toContain('unavailable')
+    expect(fullReport).toContain('不等于已证明 unchanged')
+    expect(fullReport).toContain('Clarify 窗')
+    expect(fullReport).toContain('session.list')
+    expect(fullReport).toContain('blankTurns')
+    expect(fullReport).toContain('有 turn')
     expect(fullReport).not.toContain('剩余 Codex live T7')
+    expect(fullReport).not.toContain('本文件记录一次完整 T7')
     expect(evaluateTrackedT7(buildT7Document(fullJourneyObservation()), fullReport).ok).toBe(true)
   })
 
@@ -1024,6 +1084,160 @@ describe('t7 evidence integrity adversarial', () => {
     })
     expect(isUserValueEvidence(resolveT7Assets(parseT7LabArgs(['--from-pack'])))).toBe(false)
   })
+
+  it('rejects old forged public/claimed pollution shapes at structure and fullT7', () => {
+    const publicForged = buildT7Document(fullJourneyObservation({
+      pollutionProbes: forgedPublicPollutionProbes(),
+    }))
+    const publicChecked = validateT7Structure(publicForged)
+    expect(publicChecked.ok).toBe(false)
+    expect(publicChecked.errors.join(' ')).toMatch(/pollutionProbes|source|unavailable/)
+    expect(isFullT7(publicForged)).toBe(false)
+    const claimed = buildT7Document(fullJourneyObservation({
+      pollutionProbes: { source: 'claimed-boolean', transcript: 'unchanged' },
+    }))
+    expect(validateT7Structure(claimed).ok).toBe(false)
+    expect(isFullT7(claimed)).toBe(false)
+    const trackedForged = {
+      ...trackedEvidence(),
+      pollutionProbes: forgedPublicPollutionProbes(),
+    }
+    expect(validateT7Structure(trackedForged).ok).toBe(false)
+    expect(isG0Pass(trackedForged)).toBe(false)
+  })
+
+  it('keeps G0 structure pass when live-window fields are absent', () => {
+    const g0 = buildT7Document(g0Observation())
+    expect(g0).not.toHaveProperty('pollutionProbes')
+    expect(g0).not.toHaveProperty('postSendSnapshot')
+    expect(g0).not.toHaveProperty('sendComparisons')
+    expect(g0.postCallSnapshot).not.toHaveProperty('beforeOfficialSend')
+    expect(validateT7Structure(g0).ok).toBe(true)
+    expect(validateT7Document(g0).ok).toBe(true)
+    expect(isG0Pass(g0)).toBe(true)
+    expect(isFullT7(g0)).toBe(false)
+    expect(evaluateTrackedT7(g0, formatT7Report(g0)).ok).toBe(true)
+    expect(formatT7Report(g0)).toContain('不是完整 T7')
+    expect(formatT7Report(g0)).not.toContain('Web-only T7')
+  })
+
+  it('accepts the honest contract unavailable pollution shape only with send-window proof', () => {
+    const full = buildT7Document(fullJourneyObservation())
+    expect(full.pollutionProbes).toEqual(honestPollutionProbes())
+    expect(full.postCallSnapshot).toEqual(observedPostCallSnapshot())
+    expect(full.postSendSnapshot).toEqual(observedPostSendSnapshot())
+    expect(full.sendComparisons.sessionCount).toBe('unchanged')
+    expect(full.sendComparisons.blankTurns).toBe('changed')
+    expect(full.postSendSnapshot.blankTurns).toEqual({
+      available: true,
+      status: 'observed',
+      blank: false,
+      hasTurns: true,
+    })
+    expect(full.comparisons).toEqual({
+      sessionCount: 'unchanged',
+      blankTurns: 'unchanged',
+      officialUsage: 'unchanged',
+    })
+    expect(validateT7Structure(full).ok).toBe(true)
+    expect(isFullT7(full)).toBe(true)
+    expect(isG0Pass(full)).toBe(false)
+  })
+
+  it('rejects missing post-send fields, clarify-window changes, and post-send without turns', () => {
+    const full = buildT7Document(fullJourneyObservation())
+    const missingSend = { ...full }
+    delete missingSend.postSendSnapshot
+    delete missingSend.sendComparisons
+    expect(validateT7Structure(missingSend).ok).toBe(true)
+    expect(isFullT7(missingSend)).toBe(false)
+    expect(isFullT7(buildT7Document(fullJourneyObservation({
+      postSendSnapshot: undefined,
+    })))).toBe(false)
+    expect(isFullT7(buildT7Document(fullJourneyObservation({
+      postCallSnapshot: observedPostCallSnapshot({
+        blankTurns: observedBlankTurns(false, true),
+      }),
+    })))).toBe(false)
+    expect(isFullT7(buildT7Document(fullJourneyObservation({
+      postCallSnapshot: observedPostCallSnapshot({
+        sessionCount: observedCount('one'),
+      }),
+    })))).toBe(false)
+    expect(isFullT7(buildT7Document(fullJourneyObservation({
+      postSendSnapshot: observedPostSendSnapshot({
+        blankTurns: observedBlankTurns(true, false),
+      }),
+    })))).toBe(false)
+    expect(isFullT7(buildT7Document(fullJourneyObservation({
+      postSendSnapshot: observedPostSendSnapshot({
+        blankTurns: observedBlankTurns(),
+      }),
+    })))).toBe(false)
+    const missingFlag = buildT7Document(fullJourneyObservation({
+      postSendSnapshot: {
+        sessionCount: observedCount('many'),
+        blankTurns: observedBlankTurns(false, true),
+        officialUsage: observedUsage('zero'),
+      },
+    }))
+    expect(validateT7Structure(missingFlag).ok).toBe(false)
+    expect(isFullT7(missingFlag)).toBe(false)
+  })
+
+  it('still allows fullT7 when official usage stays zero after send', () => {
+    const full = buildT7Document(fullJourneyObservation({
+      postSendSnapshot: observedPostSendSnapshot({
+        officialUsage: observedUsage('zero'),
+      }),
+    }))
+    expect(full.preCallSnapshot.officialUsage.band).toBe('zero')
+    expect(full.postCallSnapshot.officialUsage.band).toBe('zero')
+    expect(full.postSendSnapshot.officialUsage.band).toBe('zero')
+    expect(full.sendComparisons.officialUsage).toBe('unchanged')
+    expect(full.sendComparisons.sessionCount).toBe('unchanged')
+    expect(full.sendComparisons.blankTurns).toBe('changed')
+    expect(isFullT7(full)).toBe(true)
+  })
+
+  it('rejects missing or wrong beforeOfficialSend and a changed send-window sessionCount', () => {
+    const missingBoundary = buildT7Document(fullJourneyObservation({
+      postCallSnapshot: {
+        sessionCount: observedCount('many'),
+        blankTurns: observedBlankTurns(),
+        officialUsage: observedUsage(),
+      },
+    }))
+    expect(missingBoundary.postCallSnapshot).not.toHaveProperty('beforeOfficialSend')
+    expect(validateT7Structure(missingBoundary).ok).toBe(true)
+    expect(isFullT7(missingBoundary)).toBe(false)
+    const wrongBoundary = buildT7Document(fullJourneyObservation({
+      postCallSnapshot: observedPostCallSnapshot({ beforeOfficialSend: false }),
+    }))
+    expect(validateT7Structure(wrongBoundary).ok).toBe(false)
+    expect(validateT7Structure(wrongBoundary).errors.join(' ')).toMatch(/beforeOfficialSend/)
+    expect(isFullT7(wrongBoundary)).toBe(false)
+    const switchedSession = buildT7Document(fullJourneyObservation({
+      postSendSnapshot: observedPostSendSnapshot({
+        sessionCount: observedCount('one'),
+      }),
+    }))
+    expect(switchedSession.sendComparisons.sessionCount).toBe('changed')
+    expect(switchedSession.sendComparisons.blankTurns).toBe('changed')
+    expect(validateT7Structure(switchedSession).ok).toBe(true)
+    expect(isFullT7(switchedSession)).toBe(false)
+    expect(isG0Pass(buildT7Document(g0Observation({
+      postCallSnapshot: observedPostCallSnapshot(),
+    })))).toBe(true)
+    expect(validateT7Structure(buildT7Document(g0Observation({
+      postCallSnapshot: {
+        sessionCount: observedCount('many'),
+        blankTurns: observedBlankTurns(),
+        officialUsage: observedUsage(),
+        beforeOfficialSend: false,
+      },
+    }))).ok).toBe(false)
+  })
 })
 
 describe('checked-in 0.1.1-rc.2 T7 evidence', () => {
@@ -1064,6 +1278,10 @@ describe('checked-in 0.1.1-rc.2 T7 evidence', () => {
     expect(doc.preCallSnapshot.blankTurns).toEqual({ available: true, status: 'observed', blank: true, hasTurns: false })
     expect(doc.preCallSnapshot.officialUsage).toEqual({ available: true, status: 'observed', band: 'zero' })
     expect(doc.postCallSnapshot.sessionCount).toEqual({ available: true, status: 'observed', band: 'one' })
+    expect(doc).not.toHaveProperty('pollutionProbes')
+    expect(doc).not.toHaveProperty('postSendSnapshot')
+    expect(doc).not.toHaveProperty('sendComparisons')
+    expect(doc.postCallSnapshot).not.toHaveProperty('beforeOfficialSend')
     expect(doc.comparisons).toEqual({
       sessionCount: 'unchanged',
       blankTurns: 'unchanged',
