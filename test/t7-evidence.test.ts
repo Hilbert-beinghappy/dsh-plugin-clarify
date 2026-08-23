@@ -58,11 +58,24 @@ import {
   verifyReleaseChecksum,
 } from '../scripts/lib/t7-surfaces.mjs'
 import { PINNED_DSH_VERSION } from '../scripts/lib/versions.mjs'
+import { FROZEN_G0_EVIDENCE } from '../scripts/t7-live.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
+const G0_JSON = join(root, 'docs/t7-evidence/0.1.1-rc.2/t7.json')
+const G0_REPORT = join(root, 'docs/t7-evidence/0.1.1-rc.2/t7-report.md')
+const FULL_JSON = join(root, 'docs/t7-evidence/0.1.1-rc.2/t7-full.json')
+const FULL_REPORT = join(root, 'docs/t7-evidence/0.1.1-rc.2/t7-full-report.md')
+const FROZEN_G0_JSON_SHA256 = '45be6bf76ce1a48fd69a2d2dbcb391c356d8db9cdd30b94c5fbeaa3c0148817e'
+const FROZEN_G0_REPORT_SHA256 = 'd49ec0e8b5a7e49ac03d067c53b5df6c884dfc3ce5122388ea803623feed6878'
+const PREWRITE_FULL_JSON_SHA256 = 'f50942d356bb6f9c793c178f77ce9e0c2d2bca2f04ac12735cc3650bec6a503e'
+const PREWRITE_FULL_REPORT_SHA256 = '15b3abcadb1b0bde4049b77b24e505da75aab4b507e70a9c4073ec8a82150ec7'
 
 function trackedEvidence() {
-  return JSON.parse(readFileSync(join(root, 'docs/t7-evidence/0.1.1-rc.2/t7.json'), 'utf8'))
+  return JSON.parse(readFileSync(G0_JSON, 'utf8'))
+}
+
+function sha256File(path: string) {
+  return createHash('sha256').update(readFileSync(path)).digest('hex')
 }
 
 function observedCount(band: 'zero' | 'one' | 'many') {
@@ -1380,6 +1393,139 @@ describe('checked-in 0.1.1-rc.2 T7 evidence', () => {
   })
 })
 
+describe('checked-in 0.1.1-rc.2 Web-only full T7 evidence', () => {
+  it('keeps frozen G0 bytes and t7:validate on the G0 pair only', () => {
+    expect(sha256File(G0_JSON)).toBe(FROZEN_G0_JSON_SHA256)
+    expect(readFileSync(G0_JSON).byteLength).toBe(1964)
+    expect(sha256File(G0_REPORT)).toBe(FROZEN_G0_REPORT_SHA256)
+    expect(readFileSync(G0_REPORT).byteLength).toBe(1296)
+    expect(FROZEN_G0_EVIDENCE).toEqual([
+      'docs/t7-evidence/0.1.1-rc.2/t7.json',
+      'docs/t7-evidence/0.1.1-rc.2/t7-report.md',
+    ])
+    const lab = readFileSync(join(root, 'scripts/t7-lab.mjs'), 'utf8')
+    expect(lab).toContain("join(evidenceDir, 't7.json')")
+    expect(lab).toContain("join(evidenceDir, 't7-report.md')")
+    expect(lab).not.toMatch(/t7-full/)
+  })
+
+  it('records a schema-valid Web-only full T7 pair with no leaks', () => {
+    expect(existsSync(FULL_JSON)).toBe(true)
+    expect(existsSync(FULL_REPORT)).toBe(true)
+    const doc = JSON.parse(readFileSync(FULL_JSON, 'utf8'))
+    const report = readFileSync(FULL_REPORT, 'utf8')
+    expect(validateT7Document(doc).ok).toBe(true)
+    expect(isFullT7(doc)).toBe(true)
+    expect(isG0Pass(doc)).toBe(false)
+    expect(doc.fullT7).toBe(true)
+    expect(doc.g0Verdict).toBe('阻塞')
+    expect(doc.gate).toBe('T7')
+    expect(doc.noKey).toBe(false)
+    expect(doc.mock).toBe(false)
+    expect(sanitizeT7Document(doc)).toEqual(doc)
+    expect(formatT7Report(doc)).toBe(report)
+    const evaluated = evaluateTrackedT7(doc, report)
+    expect(evaluated).toMatchObject({ ok: true, fullT7: true, g0: false })
+    expect(doc).toMatchObject({
+      protocol: 't7/1',
+      hostVersion: '0.1.1-rc.2',
+      clarifyVersion: '0.2.2',
+      seekTtyProven: true,
+      seekTtyInstalled: false,
+      recommendedJointBaseline: false,
+      webOnlyComplete: true,
+      draftManuallyPasted: true,
+      userSent: true,
+      pluginAutoSent: false,
+      asset: {
+        mode: 'from-release',
+        checksumVerified: true,
+        userValue: true,
+        clarifyRelease: '0.2.2',
+        auxiliaryRelease: '0.1.1',
+      },
+      session: {
+        source: 'official-public-remote',
+        productionPluginCreated: false,
+        createdByThisScript: true,
+      },
+      preCallSnapshot: {
+        immediate: true,
+        beforeFirstClarifyRpc: true,
+        sessionCount: { available: true, status: 'observed', band: 'one' },
+        blankTurns: { available: true, status: 'observed', blank: true, hasTurns: false },
+        officialUsage: { available: true, status: 'observed', band: 'zero' },
+      },
+      postCallSnapshot: {
+        beforeOfficialSend: true,
+        sessionCount: { available: true, status: 'observed', band: 'one' },
+        blankTurns: { available: true, status: 'observed', blank: true, hasTurns: false },
+        officialUsage: { available: true, status: 'observed', band: 'zero' },
+      },
+      comparisons: {
+        sessionCount: 'unchanged',
+        blankTurns: 'unchanged',
+        officialUsage: 'unchanged',
+      },
+      diyJourney: {
+        surface: 'host-diy',
+        ok: true,
+        methods: {
+          start: 'succeeded',
+          answer: 'succeeded',
+          accept: 'succeeded',
+          refine: 'succeeded',
+          cancel: 'succeeded',
+          fetchDraft: 'succeeded',
+        },
+      },
+      manualDraftTransfer: { observed: true, method: 'manual-paste', autoFilled: false },
+      officialComposerSend: { observed: true, channel: 'official-web-composer' },
+      cancelRecovery: { observed: true, cancelled: true, recovered: true },
+      pollutionProbes: {
+        source: 'contract',
+        window: 'clarify-only',
+        transcript: 'unavailable',
+        queue: 'unavailable',
+        pending: 'unavailable',
+        plan: 'unavailable',
+        goal: 'unavailable',
+      },
+      postSendSnapshot: {
+        afterOfficialSend: true,
+        sessionCount: { available: true, status: 'observed', band: 'one' },
+        blankTurns: { available: true, status: 'observed', blank: false, hasTurns: true },
+        officialUsage: { available: true, status: 'observed', band: 'nonzero' },
+      },
+      sendComparisons: {
+        sessionCount: 'unchanged',
+        blankTurns: 'changed',
+        officialUsage: 'changed',
+      },
+    })
+    expect(report).toContain('Web-only T7')
+    expect(report).toContain('| 完整 T7 | 是')
+    expect(report).toContain('| G0 | 阻塞')
+    expect(report).toContain('不是 T4 transcript dump')
+    expect(report).toContain('不是 T5 stale')
+    expect(report).toContain('不是 T6 usage/limits')
+    expect(report).toContain('也不是新推荐联合基线')
+    expect(report).toContain('有 turn')
+    expect(report).not.toContain('剩余 Codex live T7')
+    expect(report).not.toContain('本文件记录一次完整 T7')
+    const leaked = `${JSON.stringify(doc)}\n${report}`
+    expect(leaked).not.toMatch(/sessionId|seedText|draftPreview|openai|sk-|\/Users\/|\/Volumes\/|totalTokens|uncachedInputTokens/)
+    expect(leaked).not.toMatch(/MISSING_CREDENTIAL|auxiliary model|<!doctype|<html|dump-config/)
+  })
+
+  it('pins the pre-write full evidence bytes', () => {
+    expect(readFileSync(FULL_JSON).byteLength).toBe(3182)
+    expect(sha256File(FULL_JSON)).toBe(PREWRITE_FULL_JSON_SHA256)
+    expect(readFileSync(FULL_REPORT).byteLength).toBe(1233)
+    expect(sha256File(FULL_REPORT)).toBe(PREWRITE_FULL_REPORT_SHA256)
+  })
+})
+
 describe('docs and instructions stay aligned with published 0.2.2 T7', () => {
   it('corrects task-book 6.7, T6, and 11.5 to official tokenUsage plus private auxiliary_runtime', () => {
     const book = readFileSync(join(root, 'docs/任务书A-clarify-host-plugin.md'), 'utf8')
@@ -1417,6 +1563,12 @@ describe('docs and instructions stay aligned with published 0.2.2 T7', () => {
     expect(readme).toMatch(/不是完整 T7/)
     expect(readme).not.toMatch(/今天在精确/)
     expect(readme).toContain('docs/t7-evidence/0.1.1-rc.2')
+    expect(readme).toContain('t7-full.json')
+    expect(readme).toContain('t7-full-report.md')
+    expect(compatibility).toContain('t7-full.json')
+    expect(compatibility).toContain('t7-full-report.md')
+    expect(readme).not.toMatch(/t7:validate[^\n]*fullT7=true/)
+    expect(compatibility).not.toMatch(/t7:validate[^\n]*fullT7=true/)
   })
 
   it('keeps t7 lab and schema files on the allowed harness surface', () => {
