@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { requireFromReleaseAssets } from '../scripts/lib/t7-schema.mjs'
@@ -43,6 +44,7 @@ import {
   sanitizeLiveStdout,
   selectDiyAnswerAction,
   selectOfficialComposer,
+  withIsolatedT7LiveHome,
 } from '../scripts/t7-live.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
@@ -694,6 +696,46 @@ describe('t7-live paste and official send proofs', () => {
   })
 })
 
+describe('t7-live isolated temp home', () => {
+  it('uses a unique system-temp home and cleans only that exact path', async () => {
+    const foreign = mkdtempSync(join(tmpdir(), 'unrelated-t7-'))
+    writeFileSync(join(foreign, 'keep'), 'ok')
+    const seen = []
+    try {
+      await withIsolatedT7LiveHome((home) => {
+        seen.push(home)
+        expect(dirname(resolve(home))).toBe(resolve(tmpdir()))
+        expect(resolve(home)).not.toBe(resolve(foreign))
+        expect(existsSync(home)).toBe(true)
+        return 'ok'
+      })
+      await expect(withIsolatedT7LiveHome(async (home) => {
+        seen.push(home)
+        throw new LiveBlock('HOST_BOOT', 'environment')
+      })).rejects.toMatchObject({ code: 'HOST_BOOT', category: 'environment' })
+      expect(seen).toHaveLength(2)
+      expect(seen[0]).not.toBe(seen[1])
+      expect(existsSync(seen[0])).toBe(false)
+      expect(existsSync(seen[1])).toBe(false)
+      expect(existsSync(join(foreign, 'keep'))).toBe(true)
+    } finally {
+      rmSync(foreign, { recursive: true, force: true })
+    }
+
+    const removed = []
+    await withIsolatedT7LiveHome((home) => {
+      expect(home).toBe('/tmp/clarify-t7-live-abc')
+    }, {
+      tmpdir: () => '/tmp',
+      mkdtempSync: (prefix) => `${prefix}abc`,
+      rmSync: (path) => {
+        removed.push(path)
+      },
+    })
+    expect(removed).toEqual(['/tmp/clarify-t7-live-abc'])
+  })
+})
+
 describe('t7-live source and package contract', () => {
   it('keeps an independent entry, honest pollution, and a main guard', () => {
     expect(pkg.scripts?.['t7:live']).toBe('node scripts/t7-live.mjs --from-release --require-local-assets --clarify-release 0.2.2 --auxiliary-release 0.1.1')
@@ -746,6 +788,10 @@ describe('t7-live source and package contract', () => {
     expect(liveSource.lastIndexOf('spawnDsh(')).toBeLessThan(liveSource.lastIndexOf('withChromium('))
     expect(liveSource.lastIndexOf('withChromium(')).toBeLessThan(liveSource.indexOf("'#start'"))
     expect(liveSource).toMatch(/assertLiveRouteCredential\(dumpText/)
+    expect(liveSource).not.toMatch(/isolatedHome\(/)
+    expect(liveSource).toMatch(/withIsolatedT7LiveHome/)
+    expect(liveSource).toMatch(/createIsolatedWorkspacePath\(home\)/)
+    expect(liveSource).not.toMatch(/isOwnedT7LiveHome|removeOwnedT7LiveHome/)
   })
 })
 

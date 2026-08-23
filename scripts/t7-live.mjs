@@ -2,7 +2,9 @@
 // t7-live --from-release --require-local-assets --clarify-release 0.2.2 --auxiliary-release 0.1.1
 // Independent live entry. Never strip keys. Default no write. Chromium only.
 import { execFileSync } from 'node:child_process'
-import { resolve } from 'node:path'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   T7_DIY_METHODS,
@@ -29,7 +31,6 @@ import {
 } from './lib/t7-surfaces.mjs'
 import {
   ensureOfficialDsh,
-  isolatedHome,
   runDsh,
   spawnDsh,
   stopChild,
@@ -38,6 +39,7 @@ import {
 import { postApi } from './lib/remote-client.mjs'
 import { sanitizeText } from './lib/sanitize.mjs'
 
+const T7_LIVE_HOME_PREFIX = 'clarify-t7-live-'
 const PROVIDER_KEY_VENDORS = ['OPENAI', 'DEEPSEEK']
 const COMPOSER_HINT = /message|composer|ask|prompt|chat/i
 const SEND_HINT = /send|submit/i
@@ -492,6 +494,15 @@ export function isT7LiveMain(metaUrl, argv1 = process.argv[1]) {
   }
 }
 
+export async function withIsolatedT7LiveHome(fn, io = {}) {
+  const home = (io.mkdtempSync ?? mkdtempSync)(join((io.tmpdir ?? tmpdir)(), T7_LIVE_HOME_PREFIX))
+  try {
+    return await fn(home)
+  } finally {
+    (io.rmSync ?? rmSync)(home, { recursive: true, force: true })
+  }
+}
+
 export async function runT7Live(argv = process.argv.slice(2), hooks = {}) {
   const env = hooks.env ?? process.env
   const parsed = parseT7LiveArgs(argv)
@@ -535,41 +546,42 @@ async function executeLive(parsed, asset, env) {
     if (error instanceof LiveBlock) throw error
     throw new LiveBlock('DSH_VERSION', 'environment')
   }
-  const home = isolatedHome(parsed.dshVersion, 't7-live')
-  hostEnv.DSH_HOME = home
-  try {
-    execFileSync(dshBin, ['plugin', '--profile', 'web', 'add', parsed.clarifyTgz], {
-      env: hostEnv,
-      encoding: 'utf8',
-      timeout: 120_000,
-    })
-    execFileSync(dshBin, ['plugin', '--profile', 'web', 'add', parsed.auxiliaryTgz], {
-      env: hostEnv,
-      encoding: 'utf8',
-      timeout: 120_000,
-    })
-  } catch {
-    throw new LiveBlock('HOST_BOOT', 'environment')
-  }
-  const dumpText = runDsh(dshBin, ['--profile', 'web', '--dump-config'], hostEnv)
-  const seekTty = observeSeekTtyInstalled(dumpText)
-  if (seekTty.proven !== true || seekTty.installed !== false) {
-    throw new LiveBlock('SEEKTTY', 'environment')
-  }
-  assertLiveRouteCredential(dumpText, env)
-  const child = spawnDsh(dshBin, ['--profile', 'web', '--port', '0', '--no-open'], hostEnv)
-  let bootOutput = ''
-  child.stdout.on('data', (chunk) => { bootOutput += String(chunk) })
-  child.stderr.on('data', (chunk) => { bootOutput += String(chunk) })
-  try {
-    const { origin } = await waitForPrintedOrigin(child, () => bootOutput, 90_000)
-    return await runAgainstOrigin(origin, home, asset, parsed)
-  } catch (error) {
-    if (error instanceof LiveBlock) throw error
-    throw new LiveBlock('HOST_BOOT', 'environment')
-  } finally {
-    await stopChild(child)
-  }
+  return await withIsolatedT7LiveHome(async (home) => {
+    hostEnv.DSH_HOME = home
+    try {
+      execFileSync(dshBin, ['plugin', '--profile', 'web', 'add', parsed.clarifyTgz], {
+        env: hostEnv,
+        encoding: 'utf8',
+        timeout: 120_000,
+      })
+      execFileSync(dshBin, ['plugin', '--profile', 'web', 'add', parsed.auxiliaryTgz], {
+        env: hostEnv,
+        encoding: 'utf8',
+        timeout: 120_000,
+      })
+    } catch {
+      throw new LiveBlock('HOST_BOOT', 'environment')
+    }
+    const dumpText = runDsh(dshBin, ['--profile', 'web', '--dump-config'], hostEnv)
+    const seekTty = observeSeekTtyInstalled(dumpText)
+    if (seekTty.proven !== true || seekTty.installed !== false) {
+      throw new LiveBlock('SEEKTTY', 'environment')
+    }
+    assertLiveRouteCredential(dumpText, env)
+    const child = spawnDsh(dshBin, ['--profile', 'web', '--port', '0', '--no-open'], hostEnv)
+    let bootOutput = ''
+    child.stdout.on('data', (chunk) => { bootOutput += String(chunk) })
+    child.stderr.on('data', (chunk) => { bootOutput += String(chunk) })
+    try {
+      const { origin } = await waitForPrintedOrigin(child, () => bootOutput, 90_000)
+      return await runAgainstOrigin(origin, home, asset, parsed)
+    } catch (error) {
+      if (error instanceof LiveBlock) throw error
+      throw new LiveBlock('HOST_BOOT', 'environment')
+    } finally {
+      await stopChild(child)
+    }
+  })
 }
 
 async function runAgainstOrigin(origin, home, asset, parsed) {
