@@ -11,6 +11,8 @@ export const T7_AUXILIARY_RELEASE = '0.1.1'
 export const T7_CLARIFY_TGZ_NAME = 'dsh-plugin-clarify-0.2.2.tgz'
 export const T7_AUXILIARY_TGZ_NAME = 'dsh-plugin-auxiliary-runtime-0.1.1.tgz'
 export const T7_DIY_METHODS = ['start', 'answer', 'accept', 'refine', 'cancel', 'fetchDraft']
+const T7_POLLUTION_STORES = ['transcript', 'queue', 'pending', 'plan', 'goal']
+const T7_HONEST_POLLUTION_KEYS = ['source', 'window', ...T7_POLLUTION_STORES]
 
 export function usageBand(value) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 'unavailable'
@@ -95,11 +97,19 @@ export function buildT7Document(observation = {}) {
   }
   const preCallSnapshot = observation.preCallSnapshot ?? {}
   const postCallSnapshot = observation.postCallSnapshot ?? {}
+  const postSendSnapshot = observation.postSendSnapshot
   const comparisons = {
     sessionCount: comparisonState(preCallSnapshot.sessionCount, postCallSnapshot.sessionCount, 'sessionCount'),
     blankTurns: comparisonState(preCallSnapshot.blankTurns, postCallSnapshot.blankTurns, 'blankTurns'),
     officialUsage: comparisonState(preCallSnapshot.officialUsage, postCallSnapshot.officialUsage, 'officialUsage'),
   }
+  const sendComparisons = postSendSnapshot
+    ? {
+      sessionCount: comparisonState(postCallSnapshot.sessionCount, postSendSnapshot.sessionCount, 'sessionCount'),
+      blankTurns: comparisonState(postCallSnapshot.blankTurns, postSendSnapshot.blankTurns, 'blankTurns'),
+      officialUsage: comparisonState(postCallSnapshot.officialUsage, postSendSnapshot.officialUsage, 'officialUsage'),
+    }
+    : undefined
   const doc = sanitizeT7Document({
     protocol: T7_PROTOCOL,
     hostVersion: observation.hostVersion,
@@ -134,7 +144,8 @@ export function buildT7Document(observation = {}) {
     manualDraftTransfer: observation.manualDraftTransfer,
     officialComposerSend: observation.officialComposerSend,
     cancelRecovery: observation.cancelRecovery,
-    pollutionProbes: observation.pollutionProbes,
+    ...(observation.pollutionProbes != null ? { pollutionProbes: observation.pollutionProbes } : {}),
+    ...(postSendSnapshot != null ? { postSendSnapshot, sendComparisons } : {}),
     publicReads: observation.publicReads,
     note: 'no-key/mocks never equal full T7',
   })
@@ -159,6 +170,15 @@ export function validateT7Structure(doc) {
     validatePublicRead(`preCallSnapshot.${name}`, doc.preCallSnapshot?.[name], name, errors)
     validatePublicRead(`postCallSnapshot.${name}`, doc.postCallSnapshot?.[name], name, errors)
     assertComparisonBacked(doc, name, errors)
+  }
+  validatePostCallPhaseBoundary(doc.postCallSnapshot, errors)
+  validatePollutionProbes(doc.pollutionProbes, errors)
+  validatePostSendSnapshot(doc.postSendSnapshot, errors)
+  if (doc.sendComparisons !== undefined) {
+    validateComparisonMap(doc.sendComparisons, errors, 'sendComparisons')
+    for (const name of T7_REQUIRED_COMPARISON_KEYS) {
+      assertSendComparisonBacked(doc, name, errors)
+    }
   }
   collectForbidden(doc, errors)
   return { ok: errors.length === 0, errors }
@@ -194,6 +214,20 @@ export function evaluateTrackedT7(doc, reportText) {
   if (full) {
     if (!report.includes('| 完整 T7 | 是')) errors.push('full T7 report must classify 完整 T7 as 是')
     if (report.includes('剩余 Codex live T7')) errors.push('full T7 report must not say 剩余 Codex live T7')
+    if (report.includes('本文件记录一次完整 T7')) errors.push('full T7 report must not claim unqualified complete T7')
+    if (!report.includes('Web-only T7')) errors.push('full T7 report must say Web-only T7')
+    if (!report.includes('不是 T4 transcript dump')) errors.push('full T7 report must say it is not T4 transcript dump')
+    if (!report.includes('不是 T5 stale')) errors.push('full T7 report must say it is not T5 stale')
+    if (!report.includes('不是 T6 usage/limits')) errors.push('full T7 report must say it is not T6 usage/limits')
+    if (!report.includes('也不是新推荐联合基线')) errors.push('full T7 report must say it is not a new recommended baseline')
+    if (!report.includes('transcript/queue/pending/plan/goal')) errors.push('full T7 report must name private stores')
+    if (!report.includes('无公开读缝')) errors.push('full T7 report must say private stores have no public read seam')
+    if (!report.includes('unavailable')) errors.push('full T7 report must record private stores unavailable')
+    if (!report.includes('不等于已证明 unchanged')) errors.push('full T7 report must not claim private stores unchanged')
+    if (!report.includes('Clarify 窗')) errors.push('full T7 report must mention the Clarify window')
+    if (!report.includes('session.list')) errors.push('full T7 report must mention public session.list projections')
+    if (!report.includes('blankTurns')) errors.push('full T7 report must mention blankTurns after official send')
+    if (!report.includes('有 turn')) errors.push('full T7 report must say official send produced a turn')
   } else if (!report.includes('不是完整 T7') && !report.includes('| 完整 T7 | 否')) {
     errors.push('incomplete T7 report must say 不是完整 T7')
   }
@@ -259,7 +293,8 @@ export function formatT7Report(doc) {
   const complete = doc.fullT7 === true
   const intro = complete
     ? `> 协议 \`${T7_PROTOCOL}\`。只记录布尔值与粗带。
-> 本文件记录一次完整 T7。无 key / mock / \`--from-pack\` 仍不等于完整 T7。
+> 本文件记录一次 Web-only T7（t7/1 \`fullT7=true\`）。这不是 T4 transcript dump，不是 T5 stale，不是 T6 usage/limits，也不是新推荐联合基线。
+> 污染项 \`transcript/queue/pending/plan/goal\` 因无公开读缝记 \`unavailable\`，不等于已证明 unchanged。Clarify 窗内公开 \`session.list\` 投影 unchanged；官方发送后 \`blankTurns\` 变为有 turn。无 key / mock / \`--from-pack\` 仍不等于该结论。
 > 用户价值证据必须来自校验和核验的已发布资产。`
     : `> 协议 \`${T7_PROTOCOL}\`。只记录布尔值与粗带。
 > G0 无 key 观察**不是完整 T7**。无 key / mock 不等于完整 T7。
@@ -312,11 +347,14 @@ function fullT7Predicate(evidence) {
     && evidence?.seekTtyInstalled === false
     && evidence?.recommendedJointBaseline !== true
     && observedSnapshotPair(evidence)
+    && evidence?.postCallSnapshot?.beforeOfficialSend === true
+    && clarifyWindowUnchanged(evidence)
     && sixMethodDiyJourneySucceeded(evidence)
     && manualDraftTransferObserved(evidence)
     && officialComposerSendObserved(evidence)
     && cancelRecoveryObserved(evidence)
-    && publicPollutionProbesObserved(evidence)
+    && honestPollutionProbesObserved(evidence)
+    && postSendProofOk(evidence)
 }
 
 function g0Predicate(evidence) {
@@ -376,21 +414,75 @@ function assertComparisonBacked(doc, name, errors) {
   }
 }
 
-function validateComparisonMap(comparisons, errors) {
+function validateComparisonMap(comparisons, errors, label = 'comparisons') {
   if (!comparisons || typeof comparisons !== 'object' || Array.isArray(comparisons)) {
-    errors.push('comparisons must contain exactly sessionCount/blankTurns/officialUsage')
+    errors.push(`${label} must contain exactly sessionCount/blankTurns/officialUsage`)
     return
   }
   const keys = Object.keys(comparisons)
   const extra = keys.filter((key) => !T7_REQUIRED_COMPARISON_KEYS.includes(key))
   const missing = T7_REQUIRED_COMPARISON_KEYS.filter((key) => !Object.hasOwn(comparisons, key))
   if (extra.length > 0 || missing.length > 0) {
-    errors.push('comparisons must contain exactly sessionCount/blankTurns/officialUsage')
+    errors.push(`${label} must contain exactly sessionCount/blankTurns/officialUsage`)
   }
   for (const name of T7_REQUIRED_COMPARISON_KEYS) {
     if (comparisons[name] !== undefined && !T7_COMPARISON_STATES.has(comparisons[name])) {
-      errors.push(`comparisons.${name} must be a coarse state`)
+      errors.push(`${label}.${name} must be a coarse state`)
     }
+  }
+}
+
+function assertSendComparisonBacked(doc, name, errors) {
+  const claimed = doc.sendComparisons?.[name]
+  const before = doc.postCallSnapshot?.[name]
+  const after = doc.postSendSnapshot?.[name]
+  if (claimed !== 'unchanged' && claimed !== 'changed') return
+  if (!isObservedPublic(before, name) || !isObservedPublic(after, name)) {
+    errors.push(`sendComparisons.${name}=${claimed} but postCall/postSend are unavailable`)
+    return
+  }
+  const derived = comparisonState(before, after, name)
+  if (derived !== claimed) {
+    errors.push(`sendComparisons.${name}=${claimed} inconsistent with postCall/postSend (${derived})`)
+  }
+}
+
+function validatePollutionProbes(probes, errors) {
+  if (probes === undefined) return
+  if (!probes || typeof probes !== 'object' || Array.isArray(probes)) {
+    errors.push('pollutionProbes must use the honest contract unavailable shape')
+    return
+  }
+  if (probes.source === 'public' || probes.source === 'claimed-boolean') {
+    errors.push('pollutionProbes source=public/claimed-boolean is not an honest v1 shape')
+  }
+  const keys = Object.keys(probes)
+  const extra = keys.filter((key) => !T7_HONEST_POLLUTION_KEYS.includes(key))
+  const missing = T7_HONEST_POLLUTION_KEYS.filter((key) => !Object.hasOwn(probes, key))
+  const storesHonest = T7_POLLUTION_STORES.every((name) => probes[name] === 'unavailable')
+  if (extra.length > 0 || missing.length > 0 || probes.source !== 'contract' || probes.window !== 'clarify-only' || !storesHonest) {
+    errors.push('pollutionProbes must be source=contract window=clarify-only with five unavailable stores')
+  }
+}
+
+function validatePostCallPhaseBoundary(snapshot, errors) {
+  if (!snapshot || typeof snapshot !== 'object' || !Object.hasOwn(snapshot, 'beforeOfficialSend')) return
+  if (snapshot.beforeOfficialSend !== true) {
+    errors.push('postCallSnapshot.beforeOfficialSend must be true when present')
+  }
+}
+
+function validatePostSendSnapshot(snapshot, errors) {
+  if (snapshot === undefined) return
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+    errors.push('postSendSnapshot missing required payload')
+    return
+  }
+  if (snapshot.afterOfficialSend !== true) {
+    errors.push('postSendSnapshot must be afterOfficialSend')
+  }
+  for (const name of T7_REQUIRED_COMPARISON_KEYS) {
+    validatePublicRead(`postSendSnapshot.${name}`, snapshot[name], name, errors)
   }
 }
 
@@ -474,11 +566,27 @@ function cancelRecoveryObserved(evidence) {
     && evidence?.cancelRecovery?.recovered === true
 }
 
-function publicPollutionProbesObserved(evidence) {
+function clarifyWindowUnchanged(evidence) {
+  return T7_REQUIRED_COMPARISON_KEYS.every((name) => observedUnchanged(evidence, name))
+}
+
+function honestPollutionProbesObserved(evidence) {
   const probes = evidence?.pollutionProbes
-  if (probes?.source !== 'public') return false
-  return ['transcript', 'queue', 'pending', 'plan', 'goal']
-    .every((name) => probes?.[name] === 'unchanged')
+  if (!probes || typeof probes !== 'object' || Array.isArray(probes)) return false
+  if (T7_HONEST_POLLUTION_KEYS.some((key) => !Object.hasOwn(probes, key))) return false
+  if (Object.keys(probes).some((key) => !T7_HONEST_POLLUTION_KEYS.includes(key))) return false
+  return probes.source === 'contract'
+    && probes.window === 'clarify-only'
+    && T7_POLLUTION_STORES.every((name) => probes[name] === 'unavailable')
+}
+
+function postSendProofOk(evidence) {
+  const postSend = evidence?.postSendSnapshot
+  if (postSend?.afterOfficialSend !== true) return false
+  if (!T7_REQUIRED_COMPARISON_KEYS.every((name) => isObservedPublic(postSend?.[name], name))) return false
+  if (postSend.blankTurns?.hasTurns !== true || postSend.blankTurns?.blank !== false) return false
+  return evidence?.sendComparisons?.blankTurns === 'changed'
+    && evidence?.sendComparisons?.sessionCount === 'unchanged'
 }
 
 function isObservedPublic(value, kind) {

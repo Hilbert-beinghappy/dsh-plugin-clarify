@@ -154,7 +154,7 @@ dsh plugin --profile tui add https://github.com/Hilbert-beinghappy/dsh-plugin-cl
 
 ### 已发布 `0.2.2`（非推荐联合基线）
 
-Clarify `0.2.2` 已发布 GitHub Release（tgz + SHA256SUMS），并在精确 stock `@deepseek-ai/dsh@0.1.1-rc.2`、无 SeekTTY 下做过校验和核验。证据见 `docs/t7-evidence/0.1.1-rc.2/`。Auxiliary Runtime `0.1.1` 也已发布。这不是新的推荐联合基线，也不是完整 T7 / 完整联合验收；推荐回滚仍见上一节。
+Clarify `0.2.2` 已发布 GitHub Release（tgz + SHA256SUMS），并在精确 stock `@deepseek-ai/dsh@0.1.1-rc.2`、无 SeekTTY 下做过校验和核验。Web-only T7 见 `docs/t7-evidence/0.1.1-rc.2/t7-full.json` 与 `t7-full-report.md`；入库 G0 仍见同目录 `t7.json`。Auxiliary Runtime `0.1.1` 也已发布。这不是新的推荐联合基线，也不是完整联合验收；推荐回滚仍见上一节。
 
 Host DIY / Web-only 安装只添加已发布 Clarify（及如需推理的已发布 Auxiliary），不要把 SeekTTY 写进新推荐组合：
 
@@ -198,7 +198,7 @@ Content-Type: application/json
 | 栈 | 状态 | 组合 | 证据 |
 | --- | --- | --- | --- |
 | 已发布旧栈 | 已联合验收 | Host `0.1.0-rc.8` + Clarify `0.2.1` + Auxiliary `0.1.0` + SeekTTY `1.2.0` | 2026-08-21 隔离 `DSH_HOME` / 真实 PTY；`0.2.1` 无 Key 复验 add／boot／remove／re-add 与隔离 `MISSING_CREDENTIAL` |
-| 已发布 `0.2.2` | 已发布；不是推荐联合基线；不是完整 T7 | 精确 stock Host `0.1.1-rc.2` 上校验和核验（SeekTTY 已证明未安装）；Auxiliary `0.1.1` 亦已发布 | T7 G0 **通过**：checksum-verified `--from-release` 无 key 实跑，`INFERENCE_UNAVAILABLE` + `providerFailureCode=ENOTSUP`，公开投影 unchanged。不是完整 T7，也不是新推荐联合基线。Lane A/B 仍是历史观察 |
+| 已发布 `0.2.2` | 已发布；不是推荐联合基线；Web-only T7 已观察 | 精确 stock Host `0.1.1-rc.2` 上校验和核验（SeekTTY 已证明未安装）；Auxiliary `0.1.1` 亦已发布 | T7 G0 **通过**：checksum-verified `--from-release` 无 key 实跑，`INFERENCE_UNAVAILABLE` + `providerFailureCode=ENOTSUP`，公开投影 unchanged。不是完整 T7，也不是新推荐联合基线。`t7-full.json` / `t7-full-report.md` 为 Web-only `fullT7=true`，不是 T4/T5/T6，也不是完整联合验收。Lane A/B 仍是历史观察 |
 
 - `0.2.1` 继承 `0.2.0` 的六方法 Remote、`clarify.wire/1` 和精确 rc.8 兼容边界。`0.2.0` live-provider 联合验收覆盖动态问题／选项／preview、多轮演进、采用后只写回输入框、中断恢复、用量来源和隐私。`0.2.1` 未重跑 live-provider 动态多轮，也没有 cache／cost A/B。
 - rc.6 / rc.7 只保留历史探针车道，不是 `0.2.2` 生产组合。
@@ -226,7 +226,7 @@ pnpm t7:from-pack
 pnpm t7:from-release
 ```
 
-`pnpm t0:dsh011rc2` / `pnpm t1:dsh011rc2` 是当前生产精确 lane。`pnpm t0:dsh011rc1` / `pnpm t1:dsh011rc1` 只复现同日被替换的 `0.1.1-rc.1`，不能代替 rc.2。`pnpm t7:validate` 核验已入库 `t7/1` 的结构与声明一致性，并报告实际分类；当前入库 G0 **通过**，但不是完整 T7。G0 是无 key 安全/遏制闸门：要求 `INFERENCE_UNAVAILABLE` 加上稳定的 provider-neutral `providerFailureCode`（本 lane 实跑为 `ENOTSUP`，不是 `MISSING_CREDENTIAL`）、未变的公开快照、已证明无 SeekTTY，以及 `/clarify` 六方法控件。`--from-pack` 不是用户价值证据。`pnpm t7:from-release` 是显式本地资产命令，必须同时提供已发布 `dsh-plugin-clarify-0.2.2.tgz` 与 `dsh-plugin-auxiliary-runtime-0.1.1.tgz` 及对应 SHA256SUMS；版本来自已知输入，文件名必须精确匹配。无 key / mock 不等于完整 T7。
+`pnpm t0:dsh011rc2` / `pnpm t1:dsh011rc2` 是当前生产精确 lane。`pnpm t0:dsh011rc1` / `pnpm t1:dsh011rc1` 只复现同日被替换的 `0.1.1-rc.1`，不能代替 rc.2。`pnpm t7:validate` 核验已入库 `t7/1` 的结构与声明一致性，并报告实际分类；当前入库 G0 **通过**，但不是完整 T7。G0 是无 key 安全/遏制闸门：要求 `INFERENCE_UNAVAILABLE` 加上稳定的 provider-neutral `providerFailureCode`（本 lane 实跑为 `ENOTSUP`，不是 `MISSING_CREDENTIAL`）、未变的公开快照、已证明无 SeekTTY，以及 `/clarify` 六方法控件。`--from-pack` 不是用户价值证据。`pnpm t7:from-release` 是显式本地资产命令，必须同时提供已发布 `dsh-plugin-clarify-0.2.2.tgz` 与 `dsh-plugin-auxiliary-runtime-0.1.1.tgz` 及对应 SHA256SUMS；版本来自已知输入，文件名必须精确匹配。无 key / mock 不等于完整 T7。Web-only 完整 T7 另见 `t7-full.json` / `t7-full-report.md`，不由 `t7:validate` 核验。
 
 CI `verify` 运行测试、干净构建、打包检查和进程内冒烟。Release 前还会在三个项目的联合轨道中执行官方 Host、真实 PTY、安装、卸载和重装门禁。
 

@@ -1,0 +1,146 @@
+{
+  "protocol": "t7/1",
+  "hostVersion": "0.1.1-rc.2",
+  "clarifyVersion": "0.2.2",
+  "gate": "T7",
+  "noKey": false,
+  "mock": false,
+  "seekTtyProven": true,
+  "seekTtyInstalled": false,
+  "recommendedJointBaseline": false,
+  "webOnlyComplete": true,
+  "draftManuallyPasted": true,
+  "userSent": true,
+  "pluginAutoSent": false,
+  "asset": {
+    "mode": "from-release",
+    "checksumVerified": true,
+    "userValue": true,
+    "clarifyRelease": "0.2.2",
+    "auxiliaryRelease": "0.1.1"
+  },
+  "session": {
+    "source": "official-public-remote",
+    "productionPluginCreated": false,
+    "createdByThisScript": true
+  },
+  "preCallSnapshot": {
+    "sessionCount": {
+      "available": true,
+      "status": "observed",
+      "band": "one"
+    },
+    "blankTurns": {
+      "available": true,
+      "status": "observed",
+      "blank": true,
+      "hasTurns": false
+    },
+    "officialUsage": {
+      "available": true,
+      "status": "observed",
+      "band": "zero"
+    },
+    "immediate": true,
+    "beforeFirstClarifyRpc": true
+  },
+  "start": {},
+  "postCallSnapshot": {
+    "sessionCount": {
+      "available": true,
+      "status": "observed",
+      "band": "one"
+    },
+    "blankTurns": {
+      "available": true,
+      "status": "observed",
+      "blank": true,
+      "hasTurns": false
+    },
+    "officialUsage": {
+      "available": true,
+      "status": "observed",
+      "band": "zero"
+    },
+    "beforeOfficialSend": true
+  },
+  "comparisons": {
+    "sessionCount": "unchanged",
+    "blankTurns": "unchanged",
+    "officialUsage": "unchanged"
+  },
+  "diy": {
+    "present": true,
+    "createsSession": false,
+    "methods": {
+      "start": true,
+      "answer": true,
+      "accept": true,
+      "refine": true,
+      "cancel": true,
+      "fetchDraft": true
+    }
+  },
+  "diyJourney": {
+    "surface": "host-diy",
+    "ok": true,
+    "methods": {
+      "start": "succeeded",
+      "answer": "succeeded",
+      "accept": "succeeded",
+      "refine": "succeeded",
+      "cancel": "succeeded",
+      "fetchDraft": "succeeded"
+    }
+  },
+  "manualDraftTransfer": {
+    "observed": true,
+    "method": "manual-paste",
+    "autoFilled": false
+  },
+  "officialComposerSend": {
+    "observed": true,
+    "channel": "official-web-composer"
+  },
+  "cancelRecovery": {
+    "observed": true,
+    "cancelled": true,
+    "recovered": true
+  },
+  "pollutionProbes": {
+    "source": "contract",
+    "window": "clarify-only",
+    "transcript": "unavailable",
+    "queue": "unavailable",
+    "pending": "unavailable",
+    "plan": "unavailable",
+    "goal": "unavailable"
+  },
+  "postSendSnapshot": {
+    "sessionCount": {
+      "available": true,
+      "status": "observed",
+      "band": "one"
+    },
+    "blankTurns": {
+      "available": true,
+      "status": "observed",
+      "blank": false,
+      "hasTurns": true
+    },
+    "officialUsage": {
+      "available": true,
+      "status": "observed",
+      "band": "nonzero"
+    },
+    "afterOfficialSend": true
+  },
+  "sendComparisons": {
+    "sessionCount": "unchanged",
+    "blankTurns": "changed",
+    "officialUsage": "changed"
+  },
+  "note": "no-key/mocks never equal full T7",
+  "fullT7": true,
+  "g0Verdict": "阻塞"
+}
