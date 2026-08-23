@@ -37,13 +37,20 @@ import {
   extractBlankTurns,
   extractOfficialUsage,
   extractSessionCount,
+  OFFICIAL_ONBOARDING_LATER_LABELS,
+  OFFICIAL_ONBOARDING_SAVE_LABELS,
+  OFFICIAL_WELCOME_LABELS,
   inspectDiySurface,
+  isWritableComposerTextarea,
   labelOfficialPublicSession,
+  listSessionIds,
+  planOfficialOnboardingAction,
   observeSeekTtyInstalled,
   officialSessionId,
   officialWorkspaceId,
   resolveT7Assets,
   seedOfficialPublicSession,
+  sessionListDelta,
   snapshotFromSessionList,
   snapshotImmediateBeforeFirstClarifyRpc,
   stripProviderKeys,
@@ -484,6 +491,43 @@ describe('t7 public surfaces', () => {
     expect(snapshot.sessionCount.band).toBe('many')
     const source = readFileSync(join(root, 'scripts/lib/t7-surfaces.mjs'), 'utf8')
     expect(source).not.toMatch(/session\.get|session\.current/)
+  })
+
+  it('takes a unique session.list id only from an empty-to-one delta', () => {
+    expect(listSessionIds({ items: [] })).toEqual([])
+    expect(listSessionIds({ items: [{ sessionId: 'sess-1' }, { sessionId: 'sess-2' }] })).toEqual(['sess-1', 'sess-2'])
+    expect(listSessionIds({ items: [{ id: 'sess-1' }] })).toEqual([])
+    expect(listSessionIds({})).toEqual([])
+    expect(sessionListDelta([], ['sess-1'])).toEqual({ ok: true, id: 'sess-1' })
+    expect(sessionListDelta([], [])).toMatchObject({ ok: false, code: 'SESSION_DELTA', category: 'environment' })
+    expect(sessionListDelta([], ['a', 'b'])).toMatchObject({ ok: false, code: 'SESSION_DELTA' })
+    expect(sessionListDelta(['a'], ['a', 'b'])).toMatchObject({ ok: false, code: 'SESSION_DELTA' })
+    expect(sessionListDelta(['a'], ['a'])).toMatchObject({ ok: false, code: 'SESSION_DELTA' })
+  })
+
+  it('requires textarea visibility and refuses Save and continue as a welcome control', () => {
+    expect(isWritableComposerTextarea({
+      tag: 'textarea',
+      disabled: false,
+      readOnly: false,
+      dataPhase: 'plain',
+      ariaLabel: '',
+      visible: true,
+    })).toBe(true)
+    expect(isWritableComposerTextarea({
+      tag: 'textarea',
+      disabled: false,
+      readOnly: false,
+      dataPhase: 'plain',
+      ariaLabel: '',
+      visible: false,
+    })).toBe(false)
+    expect(OFFICIAL_WELCOME_LABELS).toEqual(['Continue', '继续'])
+    expect(OFFICIAL_ONBOARDING_LATER_LABELS).toEqual(['Configure later', '稍后配置'])
+    expect(OFFICIAL_ONBOARDING_SAVE_LABELS).toEqual(['Save and continue', '保存并继续'])
+    expect(planOfficialOnboardingAction({
+      buttons: [{ name: 'Save and continue', visible: true }],
+    })).toMatchObject({ ok: false, code: 'ONBOARDING_UNIDENTIFIED' })
   })
 
   it('seeds with workspace.create({path}) then session.create(workspaceId or cwd)', async () => {

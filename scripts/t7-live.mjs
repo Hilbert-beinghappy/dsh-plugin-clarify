@@ -23,9 +23,15 @@ import {
   detectStartSignals,
   inspectDiySurface,
   labelOfficialPublicSession,
+  listSessionIds,
   observeSeekTtyInstalled,
+  officialSendLocatorSelector,
+  planOfficialOnboardingAction,
+  classifyOnboardingDeadline,
+  OFFICIAL_SEND_CONTROL_SELECTOR,
   resolveT7Assets,
-  seedOfficialPublicSession,
+  selectOfficialComposerCard,
+  sessionListDelta,
   snapshotImmediateBeforeFirstClarifyRpc,
   takePublicSnapshot,
 } from './lib/t7-surfaces.mjs'
@@ -41,9 +47,6 @@ import { sanitizeText } from './lib/sanitize.mjs'
 
 const T7_LIVE_HOME_PREFIX = 'clarify-t7-live-'
 const PROVIDER_KEY_VENDORS = ['OPENAI', 'DEEPSEEK']
-const COMPOSER_HINT = /message|composer|ask|prompt|chat/i
-const SEND_HINT = /send|submit/i
-const REJECT_HINT = /search|settings|filter|clarify|seed|session|feedback|custom/i
 
 export const FROZEN_G0_EVIDENCE = Object.freeze([
   'docs/t7-evidence/0.1.1-rc.2/t7.json',
@@ -76,6 +79,26 @@ export function formatBlockedOutput(code, category) {
 
 export function officialSendMethod() {
   return ['session', 'prompt'].join('.')
+}
+
+export const OFFICIAL_PROMPT_PATH = `/api/${officialSendMethod()}`
+export const OFFICIAL_PROMPT_RESPONSE_TIMEOUT_MS = 30_000
+export const OFFICIAL_TURN_START_TIMEOUT_MS = 60_000
+export const OFFICIAL_STEP_END_TIMEOUT_MS = 180_000
+export const OFFICIAL_POST_SEND_TIMEOUT_MAX_MS = 180_000
+export const OFFICIAL_PROMPT_POLL_INTERVAL_MS = 50
+export const OFFICIAL_POST_SEND_POLL_INTERVAL_MS = 500
+
+export function clampOfficialPostSendTimeout(value, fallback, max = OFFICIAL_POST_SEND_TIMEOUT_MAX_MS) {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) return fallback
+  return Math.min(n, max)
+}
+
+export function officialPollInterval(value, fallback) {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) return fallback
+  return n
 }
 
 export function parseT7LiveArgs(argv) {
@@ -344,6 +367,71 @@ export function noteOfficialSendAttempt(gate = createOfficialSendGate()) {
   return { ...gate, officialSendCount: (gate.officialSendCount ?? 0) + 1 }
 }
 
+export function noteOfficialPromptResponse(gate = createOfficialSendGate(), receipt = {}) {
+  if (gate.promptResponse?.responded === true) return gate
+  if (receipt.responded !== true) return gate
+  return {
+    ...gate,
+    promptResponse: {
+      responded: true,
+      accepted: receipt.accepted === true,
+    },
+  }
+}
+
+export function deriveOfficialPromptAdmission(gate = createOfficialSendGate()) {
+  if (gate.premature === true) {
+    return { ok: false, code: 'SESSION_PROMPT', category: 'forbidden' }
+  }
+  if (gate.armed !== true || gate.officialSendCount !== 1) {
+    return {
+      ok: false,
+      code: gate.officialSendCount > 1 ? 'OFFICIAL_SEND_COUNT' : 'OFFICIAL_SEND_MISSING',
+      category: 'operator',
+    }
+  }
+  if (gate.promptResponse?.responded !== true) {
+    return { ok: false, code: 'PROMPT_IN_FLIGHT', category: 'environment' }
+  }
+  if (gate.promptResponse.accepted !== true) {
+    return { ok: false, code: 'PROMPT_REJECTED', category: 'rpc' }
+  }
+  return { ok: true, accepted: true }
+}
+
+export function classifyPostSendPhase(snapshot = {}, postCall = {}, phase) {
+  if (comparisonState(postCall.sessionCount, snapshot.sessionCount, 'sessionCount') === 'changed') {
+    return { ok: false, code: 'SESSION_SWITCHED', category: 'snapshot' }
+  }
+  if (
+    comparisonState(postCall.sessionCount, snapshot.sessionCount, 'sessionCount') === 'unavailable'
+    || !isObservedPublicField(snapshot.sessionCount, 'sessionCount')
+    || !isObservedPublicField(snapshot.blankTurns, 'blankTurns')
+  ) {
+    return { ok: false, code: 'PROJECTION_UNAVAILABLE', category: 'snapshot' }
+  }
+  if (phase === 'turn-start') {
+    if (snapshot.blankTurns.blank === false) {
+      return { ok: true, phase: 'turn-started' }
+    }
+    return { ok: false, code: 'TURN_NOT_STARTED', category: 'snapshot' }
+  }
+  if (snapshot.blankTurns.blank === false && snapshot.blankTurns.hasTurns === true) {
+    return { ok: true, phase: 'complete' }
+  }
+  if (snapshot.blankTurns.blank === false) {
+    return { ok: false, code: 'STEP_INCOMPLETE', category: 'snapshot' }
+  }
+  return { ok: false, code: 'TURN_NOT_STARTED', category: 'snapshot' }
+}
+
+function isObservedPublicField(value, kind) {
+  if (value?.available !== true || value?.status !== 'observed') return false
+  if (kind === 'sessionCount') return typeof value.band === 'string'
+  if (kind === 'blankTurns') return typeof value.blank === 'boolean' && typeof value.hasTurns === 'boolean'
+  return false
+}
+
 export function deriveOfficialSendReceipts(gate = createOfficialSendGate()) {
   if (gate.premature === true) {
     return {
@@ -413,7 +501,7 @@ export function formatLiveSuccessStdout(doc, report) {
 
 export function classifyLiveEndpoint(urlPath) {
   const path = String(urlPath ?? '')
-  if (/session[./]prompt/.test(path)) {
+  if (/\/session\/[^/?#]+\/prompt\b/.test(path) || /session[./]prompt/.test(path)) {
     return { kind: 'forbidden', method: officialSendMethod() }
   }
   const clarify = path.match(/\/api\/clarify\/(start|answer|accept|refine|cancel|fetchDraft)/)
@@ -449,6 +537,23 @@ export function extractClarifyReceipt(pathname, json) {
   return receipt
 }
 
+export function extractOfficialPromptReceipt(pathname, json) {
+  if (pathname !== OFFICIAL_PROMPT_PATH) return undefined
+  if (!json || typeof json !== 'object') return undefined
+  if (json.type === 'server-response') {
+    const result = json.result
+    if (!result || typeof result !== 'object' || Array.isArray(result) || typeof result.ok !== 'boolean') {
+      return undefined
+    }
+    return {
+      kind: 'official-prompt',
+      responded: true,
+      accepted: result.ok === true && result.value?.accepted === true,
+    }
+  }
+  return undefined
+}
+
 export function honestPollutionProbes() {
   return {
     source: 'contract',
@@ -466,23 +571,145 @@ export function sanitizeLiveStdout(value) {
   return redactLiveSeedDeep(sanitizeT7Document(stripLiveOnlyKeys(value)))
 }
 
+export {
+  OFFICIAL_ONBOARDING_LATER_LABELS,
+  OFFICIAL_ONBOARDING_SAVE_LABELS,
+  OFFICIAL_SEND_CONTROL_SELECTOR,
+  OFFICIAL_SEND_LABELS,
+  OFFICIAL_WELCOME_LABELS,
+  classifyOnboardingDeadline,
+  isVisibleComposerCard,
+  isWritableComposerTextarea,
+  listSessionIds,
+  officialSendLocatorSelector,
+  planOfficialOnboardingAction,
+  selectOfficialComposerCard,
+  sessionListDelta,
+} from './lib/t7-surfaces.mjs'
+
 export function officialPasteShortcut(platform = process.platform) {
   return platform === 'darwin' ? 'Meta+V' : 'Control+V'
 }
 
-export function selectOfficialComposer(nodes = []) {
-  const composers = []
-  const sends = []
-  for (const node of nodes) {
-    const text = controlText(node)
-    if (REJECT_HINT.test(text)) continue
-    if (isComposerField(node) && COMPOSER_HINT.test(text)) composers.push(node)
-    else if (isSendControl(node) && SEND_HINT.test(text)) sends.push(node)
+export function requireOfficialSendEnabled(send = {}) {
+  if (send.disabled === true) {
+    throw new LiveBlock('OFFICIAL_SEND_MISSING', 'operator')
   }
-  if (composers.length !== 1 || sends.length !== 1) {
-    return { ok: false, code: 'COMPOSER_UNIDENTIFIED', category: 'operator' }
+  return send
+}
+
+export function requireSeededPublicSnapshot(snapshot) {
+  if (!allObserved(snapshot)) {
+    throw new LiveBlock('SESSION_SEED', 'environment')
   }
-  return { ok: true, composer: composers[0], send: sends[0] }
+  return snapshot
+}
+
+export async function waitForOfficialSessionDelta(postApiFn, origin, beforeIds, options = {}) {
+  const before = Array.isArray(beforeIds) ? beforeIds : []
+  if (before.length !== 0) {
+    throw new LiveBlock('SESSION_DELTA', 'environment')
+  }
+  const timeoutMs = options.timeoutMs ?? 30_000
+  const nap = options.delay ?? delay
+  const started = Date.now()
+  let last = sessionListDelta(before, before)
+  while (Date.now() - started < timeoutMs) {
+    const listed = await postApiFn(origin, 'session.list', {})
+    const afterIds = listSessionIds(listed?.value)
+    last = sessionListDelta(before, afterIds)
+    if (last.ok === true) return last.id
+    if (afterIds.length > 1) throw new LiveBlock('SESSION_DELTA', 'environment')
+    await nap(50)
+  }
+  throw new LiveBlock(last?.code || 'SESSION_DELTA', last?.category || 'environment')
+}
+
+export async function waitOfficialSendEnabled(locator, timeoutMs = 15_000) {
+  const started = Date.now()
+  while (Date.now() - started < timeoutMs) {
+    if (await locator.isEnabled()) return
+    await delay(50)
+  }
+  throw new LiveBlock('OFFICIAL_SEND_MISSING', 'operator')
+}
+
+export function liveBlockFromPointerFailure(error, code = 'ONBOARDING_BLOCKED') {
+  if (error instanceof LiveBlock) return error
+  return new LiveBlock(code, 'operator')
+}
+
+export async function dismissOfficialOnboarding(page, options = {}) {
+  const inspect = options.inspect ?? inspectOfficialOnboarding
+  const clickLabel = options.clickLabel ?? clickExactOnboardingButton
+  const nap = options.delay ?? delay
+  const timeoutMs = options.timeoutMs ?? 30_000
+  const started = Date.now()
+  let clicked = false
+  let last = { ok: false, code: 'ONBOARDING_MISSING', category: 'environment' }
+  while (Date.now() - started < timeoutMs) {
+    const surface = await inspect(page)
+    const plan = planOfficialOnboardingAction(surface)
+    last = plan
+    if (plan.ok === true && plan.action === 'ready') return surface
+    if (plan.ok === true && (plan.action === 'click-welcome' || plan.action === 'click-later')) {
+      try {
+        await clickLabel(page, plan.label)
+      } catch (error) {
+        throw liveBlockFromPointerFailure(error)
+      }
+      clicked = true
+      await nap(50)
+      continue
+    }
+    if (plan.code === 'ONBOARDING_UNIDENTIFIED') {
+      throw new LiveBlock(plan.code, plan.category)
+    }
+    await nap(50)
+  }
+  const deadline = classifyOnboardingDeadline(last, { clicked })
+  if (deadline.ok === true) return last
+  throw new LiveBlock(deadline.code, deadline.category)
+}
+
+async function inspectOfficialOnboarding(page) {
+  return page.evaluate((selector) => {
+    const visible = (el) => {
+      if (!el || !el.isConnected) return false
+      const style = getComputedStyle(el)
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false
+      const rect = el.getBoundingClientRect()
+      return rect.width > 0 && rect.height > 0
+    }
+    const root = document.querySelector('#root')
+    return {
+      rootInert: Boolean(root?.inert || root?.hasAttribute('inert')),
+      buttons: [...document.querySelectorAll(selector)].map((el) => ({
+        name: String(el.getAttribute('aria-label') || el.innerText || '').replace(/\s+/g, ' ').trim(),
+        visible: visible(el),
+      })),
+    }
+  }, OFFICIAL_SEND_CONTROL_SELECTOR)
+}
+
+export async function clickExactOnboardingButton(page, label, options = {}) {
+  const getButton = options.getButton ?? ((target, name) => target.getByRole('button', { name, exact: true }))
+  const waitFor = options.waitFor ?? ((target, opts) => target.waitFor(opts))
+  const locator = getButton(page, label)
+  if (await locator.count() !== 1) {
+    throw new LiveBlock('ONBOARDING_UNIDENTIFIED', 'operator')
+  }
+  try {
+    await locator.click({ timeout: 10_000 })
+  } catch (error) {
+    throw liveBlockFromPointerFailure(error)
+  }
+  try {
+    await waitFor(locator, { state: 'hidden', timeout: options.goneTimeoutMs ?? 15_000 })
+  } catch (error) {
+    if (error instanceof LiveBlock) throw error
+    throw new LiveBlock('ONBOARDING_PERSIST', 'environment')
+  }
 }
 
 export function isT7LiveMain(metaUrl, argv1 = process.argv[1]) {
@@ -590,37 +817,46 @@ async function runAgainstOrigin(origin, home, asset, parsed) {
   if (diy.present !== true || diy.createsSession !== false || !T7_DIY_METHODS.every((name) => diy.methods?.[name] === true)) {
     throw new LiveBlock('DIY_SURFACE', 'environment')
   }
-  const seeded = await seedOfficialPublicSession(postApi, origin, {
-    workspacePath: createIsolatedWorkspacePath(home),
-    home,
-  })
-  if (!seeded.sessionId) throw new LiveBlock('SESSION_SEED', 'environment')
-  const preRaw = await takePublicSnapshot(postApi, origin, seeded.sessionId)
-  const preCallSnapshot = snapshotImmediateBeforeFirstClarifyRpc(preRaw)
-  if (!allObserved(preRaw)) throw new LiveBlock('SNAPSHOT', 'snapshot')
+  const workspacePath = createIsolatedWorkspacePath(home)
+  const created = await postApi(origin, 'workspace.create', { path: workspacePath })
+  if (created?.ok !== true) throw new LiveBlock('HOST_BOOT', 'environment')
+  const beforeList = await postApi(origin, 'session.list', {})
+  const beforeIds = listSessionIds(beforeList?.value)
+  if (beforeIds.length !== 0) throw new LiveBlock('SESSION_DELTA', 'environment')
 
   const network = { events: [], sendGate: createOfficialSendGate(), blocked: null }
   const machine = await withChromium(async (browser) => {
     const context = await browser.newContext()
     await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin })
-    const diyPage = await context.newPage()
-    attachNetwork(diyPage, network)
-    await diyPage.goto(new URL('/clarify', origin).href, { waitUntil: 'domcontentloaded' })
-    const walked = await clickDiyJourney(diyPage, network, seeded.sessionId)
-    if (walked.status === 'blocked') return walked
-    if (walked.status !== 'complete') throw new LiveBlock('DIY_JOURNEY', 'sequence')
-
-    const postRaw = await takePublicSnapshot(postApi, origin, seeded.sessionId)
-    if (!allObserved(postRaw) || !windowUnchanged(preCallSnapshot, postRaw)) {
-      throw new LiveBlock('CLARIFY_WINDOW_CHANGED', 'snapshot')
-    }
     const officialPage = await context.newPage()
     attachNetwork(officialPage, network)
     await officialPage.goto(new URL('/', origin).href, { waitUntil: 'domcontentloaded' })
+    const sessionId = await waitForOfficialSessionDelta(postApi, origin, beforeIds)
+    const preRaw = requireSeededPublicSnapshot(await takePublicSnapshot(postApi, origin, sessionId))
+    const preCallSnapshot = snapshotImmediateBeforeFirstClarifyRpc(preRaw)
+    await dismissOfficialOnboarding(officialPage)
+
+    const diyPage = await context.newPage()
+    attachNetwork(diyPage, network)
+    await diyPage.goto(new URL('/clarify', origin).href, { waitUntil: 'domcontentloaded' })
+    const walked = await clickDiyJourney(diyPage, network, sessionId)
+    if (walked.status === 'blocked') return walked
+    if (walked.status !== 'complete') throw new LiveBlock('DIY_JOURNEY', 'sequence')
+
+    const postRaw = await takePublicSnapshot(postApi, origin, sessionId)
+    if (!allObserved(postRaw) || !windowUnchanged(preCallSnapshot, postRaw)) {
+      throw new LiveBlock('CLARIFY_WINDOW_CHANGED', 'snapshot')
+    }
+    await officialPage.bringToFront()
     const official = await pasteThenOfficialSend(officialPage, network)
-    const postSendRaw = await waitForSendTurns(origin, seeded.sessionId, postRaw)
+    await waitOfficialPromptAdmission(network)
+    const postSendRaw = await waitForPostSendProjection(
+      () => takePublicSnapshot(postApi, origin, sessionId),
+      postRaw,
+    )
     return {
       walked,
+      preCallSnapshot,
       postCallSnapshot: { ...postRaw, beforeOfficialSend: true },
       postSendSnapshot: { ...postSendRaw, afterOfficialSend: true },
       pasteProof: official.pasteProof,
@@ -633,8 +869,7 @@ async function runAgainstOrigin(origin, home, asset, parsed) {
       parsed,
       asset,
       diy,
-      seeded,
-      preCallSnapshot,
+      preCallSnapshot: machine.preCallSnapshot,
       machine: machine.walked,
       postCallSnapshot: machine.postCallSnapshot,
       postSendSnapshot: machine.postSendSnapshot,
@@ -649,7 +884,6 @@ function finishDocument({
   parsed,
   asset,
   diy,
-  seeded,
   preCallSnapshot,
   machine,
   postCallSnapshot,
@@ -678,7 +912,7 @@ function finishDocument({
     userSent: receipts.userSent,
     pluginAutoSent: receipts.pluginAutoSent,
     asset,
-    session: seeded.label ?? labelOfficialPublicSession({ createdByThisScript: true }),
+    session: labelOfficialPublicSession({ createdByThisScript: true }),
     preCallSnapshot,
     postCallSnapshot,
     postSendSnapshot,
@@ -787,31 +1021,19 @@ async function waitReceipt(network, method, from, timeoutMs) {
 }
 
 async function pasteThenOfficialSend(page, network) {
-  const nodes = await page.evaluate(() => {
-    const out = []
-    const list = document.querySelectorAll('textarea, [contenteditable="true"], [role="textbox"], button, [type="submit"]')
-    list.forEach((el, index) => {
-      out.push({
-        index,
-        tag: el.tagName.toLowerCase(),
-        role: el.getAttribute('role') || '',
-        ariaLabel: el.getAttribute('aria-label') || '',
-        placeholder: el.getAttribute('placeholder') || '',
-        name: el.getAttribute('name') || '',
-        title: el.getAttribute('title') || '',
-        type: el.getAttribute('type') || '',
-        text: String(el.textContent || '').slice(0, 48),
-        contenteditable: el.getAttribute('contenteditable') === 'true',
-      })
-    })
-    return out
-  })
-  const selected = selectOfficialComposer(nodes)
+  await dismissOfficialOnboarding(page)
+  const cards = await collectOfficialComposerCards(page)
+  const selected = selectOfficialComposerCard(cards)
   if (selected.ok !== true) throw new LiveBlock(selected.code, selected.category)
-  const handles = page.locator('textarea, [contenteditable="true"], [role="textbox"], button, [type="submit"]')
-  const composer = handles.nth(selected.composer.index)
-  const send = handles.nth(selected.send.index)
-  await composer.click({ timeout: 10_000 })
+  const card = page.locator('[data-composer-card]').nth(selected.cardIndex)
+  const composer = card.locator('textarea').nth(selected.composer.index)
+  const send = card.locator(officialSendLocatorSelector(selected.send.ariaLabel))
+  if (await send.count() !== 1) throw new LiveBlock('COMPOSER_UNIDENTIFIED', 'operator')
+  try {
+    await composer.click({ timeout: 10_000 })
+  } catch (error) {
+    throw liveBlockFromPointerFailure(error)
+  }
   await page.keyboard.press(officialPasteShortcut())
   const pasteProof = await composer.evaluate(async (el) => {
     const clipboardText = await navigator.clipboard.readText()
@@ -821,10 +1043,49 @@ async function pasteThenOfficialSend(page, network) {
     return { nonEmpty, exactMatch }
   })
   requireManualPasteProof(pasteProof)
+  await waitOfficialSendEnabled(send)
+  requireOfficialSendEnabled({ disabled: await send.isDisabled() })
   network.sendGate = armOfficialSendGate(network.sendGate)
-  await send.click({ timeout: 10_000 })
+  try {
+    await send.click({ timeout: 10_000 })
+  } catch (error) {
+    throw liveBlockFromPointerFailure(error, 'OFFICIAL_SEND_MISSING')
+  }
   await waitOfficialSendProof(network)
   return { pasteProof, sendGate: network.sendGate }
+}
+
+async function collectOfficialComposerCards(page) {
+  return page.evaluate((sendSelector) => {
+    const visible = (el) => {
+      if (!el || !el.isConnected) return false
+      const style = getComputedStyle(el)
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false
+      const rect = el.getBoundingClientRect()
+      return rect.width > 0 && rect.height > 0
+    }
+    return [...document.querySelectorAll('[data-composer-card]')].map((card, cardIndex) => ({
+      card: true,
+      cardIndex,
+      visible: visible(card),
+      textareas: [...card.querySelectorAll('textarea')].map((el, index) => ({
+        index,
+        tag: 'textarea',
+        visible: visible(el),
+        disabled: el.disabled === true,
+        readOnly: el.readOnly === true,
+        dataPhase: el.getAttribute('data-phase') || '',
+        ariaLabel: el.getAttribute('aria-label') || '',
+        placeholder: el.getAttribute('placeholder') || '',
+      })),
+      sends: [...card.querySelectorAll(sendSelector)].map((el, index) => ({
+        index,
+        tag: el.tagName.toLowerCase(),
+        ariaLabel: el.getAttribute('aria-label') || '',
+        disabled: el.disabled === true || el.getAttribute('aria-disabled') === 'true',
+      })),
+    }))
+  }, 'button, [type="submit"], [role="button"]')
 }
 
 async function waitOfficialSendProof(network, timeoutMs = 15_000) {
@@ -843,21 +1104,73 @@ async function waitOfficialSendProof(network, timeoutMs = 15_000) {
   throw new LiveBlock('OFFICIAL_SEND_MISSING', 'operator')
 }
 
-async function waitForSendTurns(origin, sessionId, postCall) {
-  const deadline = Date.now() + 30_000
-  let last
-  while (Date.now() < deadline) {
-    last = await takePublicSnapshot(postApi, origin, sessionId)
-    if (comparisonState(postCall.sessionCount, last.sessionCount, 'sessionCount') === 'changed') {
-      throw new LiveBlock('SESSION_SWITCHED', 'snapshot')
+export async function waitOfficialPromptAdmission(network, options = {}) {
+  const timeoutMs = clampOfficialPostSendTimeout(
+    options.promptResponseTimeoutMs,
+    OFFICIAL_PROMPT_RESPONSE_TIMEOUT_MS,
+  )
+  const nap = options.delay ?? delay
+  const now = options.now ?? Date.now
+  const intervalMs = officialPollInterval(options.promptPollIntervalMs, OFFICIAL_PROMPT_POLL_INTERVAL_MS)
+  const started = now()
+  while (now() - started < timeoutMs) {
+    const admission = deriveOfficialPromptAdmission(network.sendGate)
+    if (admission.ok === true) return admission
+    if (admission.code !== 'PROMPT_IN_FLIGHT') {
+      throw new LiveBlock(admission.code, admission.category)
     }
-    if (last.blankTurns?.blank === false && last.blankTurns?.hasTurns === true) return last
-    await delay(1000)
+    await nap(intervalMs)
   }
-  throw new LiveBlock('SEND_NO_TURNS', 'snapshot')
+  const last = deriveOfficialPromptAdmission(network.sendGate)
+  if (last.ok === true) return last
+  throw new LiveBlock(last.code || 'PROMPT_IN_FLIGHT', last.category || 'environment')
 }
 
-function attachNetwork(page, network) {
+export async function waitForPostSendProjection(takeSnapshot, postCall, options = {}) {
+  const nap = options.delay ?? delay
+  const now = options.now ?? Date.now
+  const turnMs = clampOfficialPostSendTimeout(options.turnStartTimeoutMs, OFFICIAL_TURN_START_TIMEOUT_MS)
+  const stepMs = clampOfficialPostSendTimeout(options.stepEndTimeoutMs, OFFICIAL_STEP_END_TIMEOUT_MS)
+  const intervalMs = officialPollInterval(options.pollIntervalMs, OFFICIAL_POST_SEND_POLL_INTERVAL_MS)
+  const turnSnap = await pollPostSendPhase(takeSnapshot, postCall, 'turn-start', turnMs, now, nap, intervalMs)
+  if (classifyPostSendPhase(turnSnap, postCall, 'step-end').ok === true) return turnSnap
+  return pollPostSendPhase(takeSnapshot, postCall, 'step-end', stepMs, now, nap, intervalMs)
+}
+
+async function pollPostSendPhase(takeSnapshot, postCall, phase, timeoutMs, now, nap, intervalMs) {
+  const started = now()
+  let last
+  while (now() - started < timeoutMs) {
+    last = await takeSnapshot()
+    const classified = classifyPostSendPhase(last, postCall, phase)
+    if (classified.code === 'SESSION_SWITCHED') {
+      throw new LiveBlock('SESSION_SWITCHED', 'snapshot')
+    }
+    if (classified.ok === true) return last
+    await nap(intervalMs)
+  }
+  const classified = last
+    ? classifyPostSendPhase(last, postCall, phase)
+    : { code: phase === 'turn-start' ? 'TURN_NOT_STARTED' : 'STEP_INCOMPLETE', category: 'snapshot' }
+  if (classified.code === 'SESSION_SWITCHED') {
+    throw new LiveBlock('SESSION_SWITCHED', 'snapshot')
+  }
+  if (classified.ok === true) return last
+  if (phase === 'step-end' && (classified.code === 'PROJECTION_UNAVAILABLE' || classified.code === 'TURN_NOT_STARTED')) {
+    throw new LiveBlock('STEP_INCOMPLETE', 'snapshot')
+  }
+  throw new LiveBlock(
+    classified.code || (phase === 'turn-start' ? 'TURN_NOT_STARTED' : 'STEP_INCOMPLETE'),
+    classified.category || 'snapshot',
+  )
+}
+
+function countedOfficialRequests(network) {
+  if (!network.countedOfficialRequests) network.countedOfficialRequests = new WeakSet()
+  return network.countedOfficialRequests
+}
+
+export function attachNetwork(page, network) {
   page.on('request', (request) => {
     if (request.method() !== 'POST') return
     let pathname = ''
@@ -868,6 +1181,7 @@ function attachNetwork(page, network) {
     }
     if (classifyLiveEndpoint(pathname).kind === 'forbidden') {
       network.sendGate = noteOfficialSendAttempt(network.sendGate)
+      countedOfficialRequests(network).add(request)
       if (network.sendGate.premature === true) {
         network.blocked = { code: 'SESSION_PROMPT', category: 'forbidden' }
       }
@@ -881,7 +1195,22 @@ function attachNetwork(page, network) {
     } catch {
       return
     }
-    if (classifyLiveEndpoint(pathname).kind !== 'clarify') return
+    const classified = classifyLiveEndpoint(pathname)
+    if (classified.kind === 'forbidden') {
+      if (pathname !== OFFICIAL_PROMPT_PATH) return
+      if (!countedOfficialRequests(network).has(response.request())) return
+      if (typeof response.ok !== 'function' || response.ok() !== true) return
+      let json
+      try {
+        json = await response.json()
+      } catch {
+        return
+      }
+      const receipt = extractOfficialPromptReceipt(pathname, json)
+      if (receipt) network.sendGate = noteOfficialPromptResponse(network.sendGate, receipt)
+      return
+    }
+    if (classified.kind !== 'clarify') return
     let json
     try {
       json = await response.json()
@@ -1079,18 +1408,6 @@ function classifyArgvError(error) {
   if (/0\.1\.1-rc\.2|dsh --version|exact @deepseek-ai\/dsh/i.test(message)) return 'DSH_VERSION'
   if (/tgz|SHA256|clarify-release|auxiliary-release|known/i.test(message)) return 'ASSETS'
   return 'ARGV'
-}
-
-function controlText(node) {
-  return [node?.ariaLabel, node?.placeholder, node?.name, node?.title, node?.text].filter(Boolean).join(' ')
-}
-
-function isComposerField(node) {
-  return node?.role === 'textbox' || node?.tag === 'textarea' || node?.contenteditable === true
-}
-
-function isSendControl(node) {
-  return node?.role === 'button' || node?.tag === 'button' || node?.type === 'submit'
 }
 
 function delay(ms) {

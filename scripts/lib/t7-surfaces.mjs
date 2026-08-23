@@ -45,8 +45,108 @@ export function createIsolatedWorkspacePath(home) {
   return mkdtempSync(join(base, 'clarify-t7-workspace-'))
 }
 
+export const OFFICIAL_SEND_LABELS = Object.freeze(['Send message', '发送消息'])
+export const OFFICIAL_SEND_CONTROL_SELECTOR = 'button, [type="submit"], [role="button"]'
+export const OFFICIAL_WELCOME_LABELS = Object.freeze(['Continue', '继续'])
+export const OFFICIAL_ONBOARDING_LATER_LABELS = Object.freeze(['Configure later', '稍后配置'])
+export const OFFICIAL_ONBOARDING_SAVE_LABELS = Object.freeze(['Save and continue', '保存并继续'])
+export const WORKSPACE_TRIGGER_LABELS = Object.freeze(['Choose workspace', '选择工作区'])
+
 export function listedSessionItems(value) {
   return Array.isArray(value?.items) ? value.items : null
+}
+
+export function listSessionIds(listValue) {
+  const items = listedSessionItems(listValue)
+  if (!items) return []
+  const ids = []
+  for (const item of items) {
+    const id = officialSessionId(item)
+    if (id) ids.push(id)
+  }
+  return ids
+}
+
+export function sessionListDelta(beforeIds, afterIds) {
+  const before = listedIdValues(beforeIds)
+  const after = listedIdValues(afterIds)
+  if (before.length !== 0 || after.length !== 1 || before.includes(after[0])) {
+    return { ok: false, code: 'SESSION_DELTA', category: 'environment' }
+  }
+  return { ok: true, id: after[0] }
+}
+
+export function isVisibleComposerCard(node = {}) {
+  return node.card === true && node.visible === true
+}
+
+export function isOfficialSendLabel(label) {
+  return OFFICIAL_SEND_LABELS.includes(label)
+}
+
+export function isWritableComposerTextarea(node = {}) {
+  if (node.tag !== 'textarea') return false
+  if (node.visible !== true) return false
+  if (node.disabled === true || node.readOnly === true) return false
+  if (node.dataPhase === 'inert') return false
+  if (WORKSPACE_TRIGGER_LABELS.includes(node.ariaLabel)) return false
+  return true
+}
+
+export function officialSendLocatorSelector(ariaLabel) {
+  const label = String(ariaLabel ?? '')
+  return OFFICIAL_SEND_CONTROL_SELECTOR
+    .split(', ')
+    .map((selector) => `${selector}[aria-label="${label}"]`)
+    .join(', ')
+}
+
+export function planOfficialOnboardingAction(surface = {}) {
+  const welcome = exactOnboardingMatches(surface.buttons, OFFICIAL_WELCOME_LABELS)
+  const later = exactOnboardingMatches(surface.buttons, OFFICIAL_ONBOARDING_LATER_LABELS)
+  const save = exactOnboardingMatches(surface.buttons, OFFICIAL_ONBOARDING_SAVE_LABELS)
+  if (welcome.length > 1 || later.length > 1 || (welcome.length === 1 && later.length === 1) || (welcome.length === 1 && save.length > 0)) {
+    return { ok: false, code: 'ONBOARDING_UNIDENTIFIED', category: 'operator' }
+  }
+  if (welcome.length === 1) {
+    return { ok: true, action: 'click-welcome', label: welcome[0] }
+  }
+  if (later.length === 1) {
+    return { ok: true, action: 'click-later', label: later[0] }
+  }
+  if (save.length > 0) {
+    return { ok: false, code: 'ONBOARDING_UNIDENTIFIED', category: 'operator' }
+  }
+  if (surface.rootInert === true) {
+    return { ok: false, code: 'ONBOARDING_BLOCKED', category: 'operator' }
+  }
+  return { ok: true, action: 'ready' }
+}
+
+export function classifyOnboardingDeadline(plan, options = {}) {
+  if (plan?.ok === true && plan.action === 'ready') return plan
+  if (options.clicked === true) {
+    return { ok: false, code: 'ONBOARDING_PERSIST', category: 'environment' }
+  }
+  return { ok: false, code: 'ONBOARDING_MISSING', category: 'environment' }
+}
+
+export function selectOfficialComposerCard(cards = []) {
+  const visible = []
+  for (let index = 0; index < cards.length; index += 1) {
+    const card = cards[index]
+    if (isVisibleComposerCard(card)) visible.push({ card, cardIndex: card.cardIndex ?? index })
+  }
+  if (visible.length !== 1) {
+    return { ok: false, code: 'COMPOSER_UNIDENTIFIED', category: 'operator' }
+  }
+  const { card, cardIndex } = visible[0]
+  const textareas = (card.textareas ?? []).filter(isWritableComposerTextarea)
+  const sends = (card.sends ?? []).filter((node) => isOfficialSendLabel(node?.ariaLabel))
+  if (textareas.length !== 1 || sends.length !== 1) {
+    return { ok: false, code: 'COMPOSER_UNIDENTIFIED', category: 'operator' }
+  }
+  return { ok: true, cardIndex, composer: textareas[0], send: sends[0] }
 }
 
 export function extractSessionCount(value) {
@@ -260,6 +360,21 @@ function sanitizeProviderFailureCode(code) {
   const trimmed = code.trim()
   if (!/^[A-Z][A-Z0-9_]{1,32}$/.test(trimmed)) return 'UNKNOWN'
   return trimmed
+}
+
+function listedIdValues(ids) {
+  return (Array.isArray(ids) ? ids : []).filter((id) => typeof id === 'string' && id.length > 0)
+}
+
+function exactOnboardingMatches(buttons, labels) {
+  const names = []
+  for (const node of Array.isArray(buttons) ? buttons : []) {
+    const name = typeof node === 'string'
+      ? node.trim()
+      : (node && node.visible !== false ? String(node.name ?? node.ariaLabel ?? node.text ?? '').trim() : '')
+    if (name && labels.includes(name)) names.push(name)
+  }
+  return names
 }
 
 function matchesSeededSession(item, sessionId) {
